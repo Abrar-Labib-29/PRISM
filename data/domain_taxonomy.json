@@ -1,0 +1,342 @@
+[
+  {
+    "Sub_Domain_ID": "SUB-01",
+    "Sub_Domain": "ADC & Application Traffic Management",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Application Delivery Controllers (ADC), Layer 4-7 load balancing, Global Server Load Balancing (GSLB), and SSL/TLS offloading.",
+    "Keywords_Triggers": "ADC, Load Balancer, Load Balancing, GSLB, Traffic Management, Application Delivery, Reverse Proxy, SSL Offloading",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-02",
+    "Sub_Domain": "CDN & Content Delivery",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Content Delivery Networks (CDN), web performance caching, edge compute, dynamic content acceleration, and media streaming delivery.",
+    "Keywords_Triggers": "CDN, Content Delivery, Web Acceleration, Edge Caching, Media Streaming, Edge Delivery, Latency Reduction",
+    "Data_Status": "Confirmed",
+    "Product_Count": 2
+  },
+  {
+    "Sub_Domain_ID": "SUB-03",
+    "Sub_Domain": "Carrier-Grade, DDoS & SSL Security Appliances",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Carrier-grade NAT (CGNAT), high-capacity volumetric DDoS mitigation appliances, and hardware-accelerated SSL/TLS inspection engines.",
+    "Keywords_Triggers": "CGNAT, Carrier-Grade NAT, DDoS Mitigation, Volumetric DDoS, DDoS Appliance, SSL Inspection, TLS Decryption",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-04",
+    "Sub_Domain": "Cloud & Object Storage Management",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "",
+    "Description": "Scalable S3-compatible object storage systems, hybrid cloud storage gateways, unstructured data tiering, and multi-cloud storage management.",
+    "Keywords_Triggers": "Object Storage, S3 Storage, StorageGRID, Cloud Volumes, Cloud Storage Gateway, Unstructured Data, Data Tiering",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-05",
+    "Sub_Domain": "Cloud Compute & Serverless",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Public and hybrid cloud virtual machines, distributed edge compute, container runtime infrastructure, and serverless execution environments.",
+    "Keywords_Triggers": "Cloud Compute, Virtual Machines, Serverless, Edge Compute, Cloud IaaS, Compute Engine, MicroVM",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-06",
+    "Sub_Domain": "Cloud Network, Operations & Patch Management",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Cloud overlay networks, automated patch deployment, OS lifecycle management, software-defined network virtualization, and configuration control.",
+    "Keywords_Triggers": "Cloud Network, Patch Management, OS Management, NSX, Network Virtualization, SUSE Manager, Systems Management",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-07",
+    "Sub_Domain": "Cloud Security, WAAP & Third-Party Risk",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Web Application and API Protection (WAAP), cloud-native security platforms (CNAPP), container firewalls, and third-party vendor cyber risk scoring.",
+    "Keywords_Triggers": "WAAP, WAF, Web Application Firewall, API Security, Third-Party Risk, Vendor Risk, NeuVector, Cloud Security, CNAPP",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-08",
+    "Sub_Domain": "Cloud Storage, SaaS Backup & Database",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Cloud blob/object storage, managed cloud databases, and SaaS application backup solutions (e.g. M365, Google Workspace).",
+    "Keywords_Triggers": "Cloud Storage, SaaS Backup, Cloud Database, R2 Storage, Cloud SQL, Blob Storage, Managed Database",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-09",
+    "Sub_Domain": "Compute Servers & AI/HPC Infrastructure",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "",
+    "Description": "Enterprise rackmount and blade compute servers, AI acceleration nodes (GPU clusters), high-performance computing (HPC), and liquid-cooled hardware.",
+    "Keywords_Triggers": "Compute Servers, AI Infrastructure, HPC, GPU Servers, Rackmount Servers, High Performance Computing, OriginAI, Server Hardware",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-10",
+    "Sub_Domain": "Container & Kubernetes Platforms",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Enterprise Kubernetes orchestration, multi-cluster container management platforms, service mesh, and container registry infrastructure.",
+    "Keywords_Triggers": "Kubernetes, K8s, Containers, Rancher, GKE, Container Platform, Cluster Management, Docker Orchestration",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-11",
+    "Sub_Domain": "Data Analytics, AI & Streaming",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Enterprise cloud data warehousing, machine learning / generative AI development platforms, big data analytics, and real-time query engines.",
+    "Keywords_Triggers": "Data Analytics, BigQuery, Vertex AI, Data Warehouse, Machine Learning Platform, AI Model Training, Business Intelligence",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-12",
+    "Sub_Domain": "Data Center Switching & Network Fabric",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "High-throughput spine-leaf data center switches, programmable network OS, EVPN-VXLAN network fabrics, and telemetry monitoring.",
+    "Keywords_Triggers": "Data Center Switches, Network Fabric, Leaf-Spine, Arista, 7000 Series, CloudVision, EVPN, Switching Fabric",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-13",
+    "Sub_Domain": "Data Protection & Backup",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "Cloud & Application Life Management, Enterprise & Cyber Security",
+    "Description": "Enterprise backup and disaster recovery, immutable ransomware-resilient snapshots, hyperconverged backup appliances, and instant recovery platforms.",
+    "Keywords_Triggers": "Backup, Recovery, Data Protection, Ransomware Recovery, Disaster Recovery, Cohesity, Rubrik, Veeam, Arcserve, Immutable Backup",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-14",
+    "Sub_Domain": "Data Security: DLP, Encryption & Key Management",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Data Loss Prevention (DLP), enterprise encryption, centralized key management (KMS), and sensitive data discovery/classification.",
+    "Keywords_Triggers": "DLP, Data Loss Prevention, Encryption, Key Management, CipherTrust, Forcepoint DLP, Digital Guardian, Data Classification",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-15",
+    "Sub_Domain": "Data Streaming Platforms",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "",
+    "Description": "Enterprise Apache Kafka-based event streaming platforms, real-time publish/subscribe message brokers, stream processing, and event-driven architecture.",
+    "Keywords_Triggers": "Event Streaming, Kafka, Data Streaming, Confluent, Real-time Streaming, Message Broker, Event-Driven Architecture",
+    "Data_Status": "Confirmed",
+    "Product_Count": 2
+  },
+  {
+    "Sub_Domain_ID": "SUB-16",
+    "Sub_Domain": "DevOps, CI/CD & Developer Tools",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Source code repository management, automated CI/CD build/test/deploy pipelines, developer collaboration, and software supply chain security.",
+    "Keywords_Triggers": "CI/CD, DevOps, GitHub, GitHub Actions, Code Repository, Pipeline Automation, Version Control, Developer Tools",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-17",
+    "Sub_Domain": "Endpoint Protection, XDR & Cloud Workload Security",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Next-generation antivirus (NGAV), Endpoint Detection and Response (EDR), Extended Detection and Response (XDR), and Cloud Workload Protection (CWPP).",
+    "Keywords_Triggers": "EDR, XDR, Endpoint Protection, Antivirus, SentinelOne, Singularity, CloudGuard, Workload Protection, Endpoint Security",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-18",
+    "Sub_Domain": "Enterprise Application Platforms (Banking & ECM)",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Core banking engines, enterprise content management (ECM), financial transaction processing, and document lifecycle governance systems.",
+    "Keywords_Triggers": "Core Banking, ECM, Enterprise Content Management, Documentum, OpenText, Temenos, Transact, Banking Software",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-19",
+    "Sub_Domain": "Enterprise Primary Storage Arrays",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "",
+    "Description": "All-Flash SAN/NAS storage arrays, unified hybrid storage systems, NVMe-over-Fabrics, and enterprise mission-critical primary storage controllers.",
+    "Keywords_Triggers": "Primary Storage, SAN, NAS, All-Flash Array, NetApp AFF, FAS Series, Storage Controller, Block Storage",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-20",
+    "Sub_Domain": "GRC, Cyber Risk & Readiness",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Governance, Risk, and Compliance (GRC) management, cybersecurity readiness simulation, cyber range training, and incident response drill platforms.",
+    "Keywords_Triggers": "GRC, Cyber Risk, Compliance Management, Archer, Cyberbit, Cyber Range, SOC Training, Risk Management",
+    "Data_Status": "Confirmed",
+    "Product_Count": 2
+  },
+  {
+    "Sub_Domain_ID": "SUB-21",
+    "Sub_Domain": "Hardware Security Modules (HSM)",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "FIPS 140-2/3 Level 3 certified cryptographic hardware appliances for secure cryptographic key generation, storage, digital signing, and payment processing.",
+    "Keywords_Triggers": "HSM, Hardware Security Module, Luna HSM, Entrust nShield, Cryptographic Key Storage, FIPS 140-2, Cryptographic Processor",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-22",
+    "Sub_Domain": "IAM & Multi-Factor Authentication",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Identity and Access Management (IAM), Single Sign-On (SSO), Multi-Factor Authentication (MFA), passwordless authentication, and adaptive access control.",
+    "Keywords_Triggers": "IAM, MFA, Multi-Factor Authentication, SSO, Single Sign-On, Entrust IDaaS, SafeNet Trusted Access, Identity Management",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-23",
+    "Sub_Domain": "IT Operations, Asset & Storage Management",
+    "Primary_Domain_Category": "Infrastructure & Data Center",
+    "Cross_Domain_Categories": "",
+    "Description": "IT Asset Management (ITAM), software asset licensing compliance, IT Service Management (ITSM), and storage infrastructure performance telemetry.",
+    "Keywords_Triggers": "ITAM, Asset Management, ITSM, Ivanti Neurons, Storage Management, Hitachi Ops Center, License Management, Infrastructure Operations",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-24",
+    "Sub_Domain": "Identity Security & Zero Trust Identity",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Identity Threat Detection and Response (ITDR), Active Directory credential protection, Zero Trust identity verification, and lateral movement defense.",
+    "Keywords_Triggers": "Identity Security, ITDR, Zero Trust Identity, Active Directory Protection, Singularity Identity, Idira, Credential Theft Defense",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-25",
+    "Sub_Domain": "Network Security: NGFW, DDoS & SSE",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Next-Generation Firewalls (NGFW), Security Service Edge (SSE), cloud-delivered perimeter defense, and distributed anti-DDoS traffic scrubbing.",
+    "Keywords_Triggers": "NGFW, Next-Gen Firewall, Firewall, Check Point Quantum, Forcepoint ONE, SSE, Security Service Edge, Network Security",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-26",
+    "Sub_Domain": "Network Visibility, DDI & Policy Management",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Network Packet Brokers (NPB), DNS/DHCP/IPAM (DDI), network test taps, packet inspection telemetry, and centralized policy enforcement.",
+    "Keywords_Triggers": "Network Visibility, Packet Broker, DDI, IPAM, Keysight Vision, Riverbed NetProfiler, Network TAPs, Flow Monitoring",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-27",
+    "Sub_Domain": "Observability, APM & Network Monitoring",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Application Performance Monitoring (APM), deep packet network detection, cyber threat intelligence packet analysis, and full-stack enterprise observability.",
+    "Keywords_Triggers": "APM, Observability, Network Monitoring, NETSCOUT, nGenius, Omnis Cyber Intelligence, Packet Analysis, Network Telemetry",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-28",
+    "Sub_Domain": "PKI, Certificate Lifecycle & Secure Transfer",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Public Key Infrastructure (PKI), automated digital certificate lifecycle management (CLM), and Managed File Transfer (MFT) solutions.",
+    "Keywords_Triggers": "PKI, Certificate Management, CLM, SSL Certificates, GoAnywhere MFT, Managed File Transfer, Entrust PKI, Secure Transfer",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-29",
+    "Sub_Domain": "Privileged Access Management (PAM)",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Privileged Access Management (PAM), password vaulting, session recording, privileged elevation and delegation management (PEDM), and secrets management.",
+    "Keywords_Triggers": "PAM, Privileged Access, Privileged Account, Password Vault, Session Recording, ARCON, BeyondTrust, CyberArk, Privilege Elevation",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-30",
+    "Sub_Domain": "SD-WAN & WAN Optimization",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Software-Defined Wide Area Networking (SD-WAN), WAN edge acceleration, bandwidth optimization, path conditioning, and multi-cloud interconnect routing.",
+    "Keywords_Triggers": "SD-WAN, WAN Optimization, SteelHead, EdgeConnect, Riverbed, Aruba SD-WAN, WAN Acceleration, Branch Networking",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-31",
+    "Sub_Domain": "SIEM, SOAR & Security Operations",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Security Information and Event Management (SIEM), Security Orchestration, Automation and Response (SOAR), User and Entity Behavior Analytics (UEBA).",
+    "Keywords_Triggers": "SIEM, SOAR, Security Operations, Securonix, Kaspersky SIEM, Log Management, Security Analytics, Incident Response",
+    "Data_Status": "Confirmed",
+    "Product_Count": 4
+  },
+  {
+    "Sub_Domain_ID": "SUB-32",
+    "Sub_Domain": "Server Virtualization & HCI",
+    "Primary_Domain_Category": "Cloud & Application Life Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Type-1 bare-metal hypervisors, Hyper-Converged Infrastructure (HCI), software-defined storage (vSAN), and virtualized computing clusters.",
+    "Keywords_Triggers": "Virtualization, Hypervisor, vSphere, VMware, Virtuozzo, HCI, Hyper-Converged, vSAN, Virtual Machine Cluster",
+    "Data_Status": "Confirmed",
+    "Product_Count": 3
+  },
+  {
+    "Sub_Domain_ID": "SUB-33",
+    "Sub_Domain": "Vulnerability Management & Offensive Security",
+    "Primary_Domain_Category": "Enterprise & Cyber Security",
+    "Cross_Domain_Categories": "",
+    "Description": "Vulnerability scanning and assessment, attack surface management (ASM), automated penetration testing, and exposure management platforms.",
+    "Keywords_Triggers": "Vulnerability Assessment, Vulnerability Management, Tenable, Nessus, Tenable One, Pen Testing, Offensive Security, Exposure Management",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  },
+  {
+    "Sub_Domain_ID": "SUB-34",
+    "Sub_Domain": "Wireless, NAC & Device Management",
+    "Primary_Domain_Category": "Networking & Information Life Cycle Management",
+    "Cross_Domain_Categories": "",
+    "Description": "Enterprise Wi-Fi 6E/7 Access Points, Network Access Control (NAC), Enterprise Mobility Management (EMM/MDM), and IoT device endpoint management.",
+    "Keywords_Triggers": "Wireless, Wi-Fi, NAC, Network Access Control, ClearPass, SOTI MobiControl, MDM, EMM, Access Points, Device Management",
+    "Data_Status": "Confirmed",
+    "Product_Count": 5
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "embedding_model_load": {
+    "load_time_sec": 25.92,
+    "ram_delta_mb": 22.6,
+    "pass": true
+  },
+  "dataset_embedding": {
+    "product_count": 139,
+    "embedding_time_sec": 29.78,
+    "file_size_kb": 208.6,
+    "pass": true
+  },
+  "phi4_cold_start": {
+    "warmup_time_sec": 261.87,
+    "ollama_ram_mb": 47.1,
+    "pass": false
+  },
+  "e2e_query": {
+    "ttft_sec": 15.01,
+    "generation_speed_tok_sec": 3.9,
+    "total_latency_sec": 31.23,
+    "token_count": 61,
+    "final_system_ram_gb": 7.66,
+    "pass": true
+  }
+}
