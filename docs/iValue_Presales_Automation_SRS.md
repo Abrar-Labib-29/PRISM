@@ -140,12 +140,32 @@ iValue PRISM is a standalone, native Windows 10/11 desktop application. It does 
 
 ### 2.5 Assumptions and dependencies
 - **Ollama daemon:** Ollama is installed on the host Windows machine (`%LOCALAPPDATA%\Programs\Ollama\ollama.exe`). iValue PRISM checks if Ollama is running on `http://127.0.0.1:11434` at launch; if not, it automatically initiates `ollama serve` in the background.
-- **Model weights:** The `Phi-4-mini:3.8b-instruct-q4_K_M` model has been pulled into Ollama's local store (`ollama pull phi4-mini`).
+- **Model weights:** The canonical reasoning model tag `phi4-mini` (specifically `phi4-mini:3.8b-instruct-q4_K_M`, aliased as `phi4-mini`) has been pulled into Ollama's local store (`ollama pull phi4-mini`).
 - **Embedding weights:** `bge-small-en-v1.5` weights (~130 MB) are cached locally in the user profile (`%USERPROFILE%\.cache\huggingface\hub`).
 - **Cached index:** Pre-computed vector embeddings (`data/embeddings.npy`) and metadata (`data/metadata.pkl`) are available, eliminating the need to re-embed products on each startup.
 - **Host OS:** Windows 10 (version 1909+) or Windows 11 (64-bit).
 - **Taskbar integration:** PRISM runs as a standard Windows desktop application with taskbar icon, standard window controls, and persistent window dimensions.
 - **Dataset availability:** The dataset Excel file exists at a configured path (`data/raw/iValue_Solution_Recommendation_Dataset.xlsx`).
+
+### 2.6 System Configuration Constants
+
+All core thresholds, model strings, formulas, and environment paths are governed by a single canonical configuration specification:
+
+| Constant | Value | Description |
+|---|---|---|
+| `APP_VERSION` | `"3.3"` | Current software specification and application release version |
+| `OLLAMA_HOST` | `"http://127.0.0.1:11434"` | Default endpoint for the local Ollama desktop daemon |
+| `OLLAMA_MODEL_TAG` | `"phi4-mini"` | Canonical Ollama tag. Alias resolution logic: `phi4-mini` $\rightarrow$ `phi4-mini:latest` $\rightarrow$ `phi4-mini:3.8b-instruct-q4_K_M` |
+| `EMBEDDING_MODEL_NAME` | `"bge-small-en-v1.5"` | Local Sentence-Transformers embedding model (384-dim dense vectors) |
+| `SIMILARITY_FLOOR` | `0.20` | **Hard cutoff threshold:** Candidate products with cosine similarity $<0.20$ are discarded entirely (zero-results cutoff) |
+| `SIMILARITY_WARNING` | `0.35` | **Advisory threshold:** Candidates with cosine similarity between $0.20$ and $0.35$ trigger a LOW confidence advisory banner |
+| `SIMILARITY_CEILING` | `0.80` | Normalization ceiling corresponding to a $100\%$ semantic fit score |
+| `FIT_SCORE_FORMULA` | `max(0, min(100, (sim - 0.20) / (0.80 - 0.20) * 100))` | Canonical formula mapping cosine similarity ($0.20 \dots 0.80$) to a $0 \dots 100\%$ display Fit Score |
+| `CONFIDENCE_TIERS` | HIGH: $\ge 85$ & Confirmed; MED: $\ge 65$; LOW: $<65$ or TBD | Tiers: HIGH ($\ge 85\%$ fit and all rows Confirmed), MED ($65\dots 84\%$ fit or Draft), LOW ($<65\%$ fit or any TBD) |
+| `TOKEN_HEURISTIC_FACTOR`| `1.3` | UI token gauge estimator: `estimated_tokens = int(len(text.split()) * 1.3)` |
+| `MAX_SESSION_HISTORY` | `20` | Maximum in-memory session snapshots retained in the sidebar reel (volatile, per-process) |
+| `PRIMARY_LOG_PATH` | `"%APPDATA%\iValue_PRISM\logs\query_log.jsonl"` | Primary Windows query logging path (fallback: `./logs/query_log.jsonl`) |
+| `CONFIG_FILE_PATH` | `"%APPDATA%\iValue_PRISM\config.json"` | Persistent user preferences and window geometry file |
 
 ---
 
@@ -202,7 +222,9 @@ Evaluated 5 realistic presales scenarios across distinct cybersecurity domains (
    a. **Keyword/filter pass (fast, deterministic):** Scan the input text for exact matches against known Sub_Domain names, OEM names, and Product_Category values. If found, apply these as metadata filters to narrow the search space before semantic search.
    b. **Semantic search pass:** The (possibly filtered) requirement text is prefixed with `"Represent this sentence for searching relevant passages: "` and converted into an embedding via bge-small-en-v1.5. This embedding is compared against the pre-computed composite product embeddings (see Section 4.4) in the embedding index.
    c. **Result merging:** Combine keyword-match results and semantic-search results using Reciprocal Rank Fusion (RRF) or simple union-and-rerank. Return the top-K candidates (K = 5 by default, configurable).
-   d. **Retrieval quality check:** If the best-match similarity score is below a configurable threshold (default: 0.35 cosine similarity), warn the engineer: "Low confidence in results — your requirement may not match any products in iValue's current catalog. Results shown may not be relevant."
+   d. **Retrieval quality check:** Governed by the two-tier threshold system (Section 2.6):
+       - *Hard Cutoff (`SIMILARITY_FLOOR = 0.20`):* Any candidate with cosine similarity $<0.20$ is discarded entirely. If all candidates score below $0.20$, retrieval halts immediately and triggers the zero-results state (Section 10.3) without invoking the LLM.
+       - *Advisory Warning (`SIMILARITY_WARNING = 0.35`):* If the top-match similarity score falls between $0.20$ and $0.35$, the pipeline proceeds to LLM generation but attaches a prominent LOW confidence advisory banner: *"Low confidence in results — your requirement may not closely match any products in iValue's current catalog. Results shown may not be fully relevant."*
 
 5. **Context assembly for the LLM:**
    For each of the top-K retrieved products, pull from the dataset:
@@ -214,7 +236,7 @@ Evaluated 5 realistic presales scenarios across distinct cybersecurity domains (
    Format this as a structured Markdown table or clean JSON in the LLM prompt. Keep total context (system prompt + retrieved data + user requirement) within the `num_ctx` limit (2048 tokens). If retrieved data exceeds the budget, prioritize: Products fields first, then top 3 features per product, then top 2 pros/cons each, then Domain_Comparables if space allows.
 
 6. **Reasoning model (LLM) generation:**
-   Send the assembled prompt to Phi-4-mini via Ollama with explicit instructions:
+   Send the assembled prompt to Phi-4-mini (tag: `phi4-mini`) via Ollama with explicit instructions:
    - "Rank the candidate products against the stated requirement."
    - "For each recommended product, cite the specific dataset fields that support your recommendation."
    - "Do NOT invent any product capability, feature, or specification not present in the provided data."
@@ -223,10 +245,15 @@ Evaluated 5 realistic presales scenarios across distinct cybersecurity domains (
    - Stream tokens via a background worker thread and thread-safe queue to the CustomTkinter UI, providing live streaming feedback to the engineer during the 30–55 second wait.
 
 7. **Post-generation validation (deterministic, not LLM-based):**
-   a. **Price-mention filter:** Scan the generated text for price-related patterns (currency symbols, "cost", "price", "$$", "$X", "per user/month", etc.). If found, strip those sentences and append a warning: "⚠️ Pricing content was removed. This system does not provide pricing."
-   b. **Hallucination check:** Extract all product names and feature claims from the output. Cross-reference against the dataset. Flag any claim not traceable to a dataset row with "⚠️ Unverified claim" (see Section 11.2).
+   a. **Price-mention filter:** Scan the generated text for price-related patterns (currency symbols, "cost", "price", "$$", "$X", "per user/month", etc.). If found, strip those sentences and append a notification: "[Pricing content was removed — contact iValue Sales. This system does not provide pricing.]"
+   b. **Hallucination check:** Extract all product names and feature claims from the output. Cross-reference against the dataset. Flag any claim not traceable to a dataset row with "[Unverified claim]" (see Section 11.2).
    c. **Repetition loop detection:** Check for n-gram repetition (same 10+ word sequence appearing 3+ times). If detected, truncate output at the first repetition.
-   d. **Confidence score:** Calculate based on (a) average retrieval similarity score, and (b) Data_Status of cited rows. Display as HIGH / MEDIUM / LOW.
+   d. **Confidence score:** Calculate the normalized Fit Score via canonical formula:
+      $$\text{fit\_score} = \max\left(0, \min\left(100, \frac{\text{cosine\_sim} - 0.20}{0.80 - 0.20} \times 100\right)\right)$$
+      Apply confidence tiering:
+      - **HIGH:** $\text{fit\_score} \ge 85\%$ (cosine similarity $\ge 0.71$) AND all cited rows have `Data_Status == 'Confirmed'`.
+      - **MEDIUM:** $\text{fit\_score} \ge 65\%$ (cosine similarity $\ge 0.59$) OR some cited rows have `Data_Status == 'Draft'`.
+      - **LOW:** $\text{fit\_score} < 65\%$ (cosine similarity $< 0.59$) OR any cited row has `Data_Status == 'TBD'`.
 
 8. **Output formatting:**
    Present the recommendation in a structured format (see Section 8.4 for full format specification):
@@ -236,9 +263,9 @@ Evaluated 5 realistic presales scenarios across distinct cybersecurity domains (
 
    REASONING:
    - Matches your need for [X]: [Feature_Name] — "[Feature_Description]"
-     📎 Source: Product_Features, [Product_ID], Status: Confirmed
+     [Source: Product_Features, [Product_ID], Status: Confirmed]
    - Key differentiator: "[Key_Differentiator]"
-     📎 Source: Products, [Product_ID], Status: Confirmed
+     [Source: Products, [Product_ID], Status: Confirmed]
 
    ALTERNATIVES CONSIDERED:
    - [Product 2]: Strong in [area] but less suited because [reason]
@@ -249,7 +276,7 @@ Evaluated 5 realistic presales scenarios across distinct cybersecurity domains (
    |---|---|---|---|
    | [attr] | [val] | [val] | [val] |
 
-   ⚠️ CONFIDENCE: [HIGH/MEDIUM/LOW] — [reason]
+   CONFIDENCE: [HIGH/MEDIUM/LOW] ([XX]% Fit) — [reason]
    ```
 
 9. **Engineer review and feedback (FR-9):**
@@ -387,14 +414,10 @@ This composite text is what gets embedded and stored in the embedding index. The
 
 **Total tokens per product:** Typically 150–400 tokens, well within bge-small-en-v1.5's 512-token limit.
 
-**Store these metadata fields as a Pandas DataFrame alongside the numpy array (`metadata.pkl` and `embeddings.npy`):**
-- `product_id`: For joining back to the full dataset
-- `oem_name`: For keyword filtering
-- `domain_category`: For metadata filtering
-- `sub_domain`: For metadata filtering
-- `product_category`: For metadata filtering
-- `data_status`: For confidence scoring
-- `last_verified`: For freshness tracking
+**Storage Roles & Files Generated:**
+1. `data/embeddings.npy`: NumPy array of shape `(139, 384)` (float32) containing the dense semantic vectors used for <1ms exact cosine similarity scans.
+2. `data/metadata.pkl`: Serialized Pandas DataFrame storing structured fields (`product_id`, `oem_name`, `domain_category`, `sub_domain`, `product_category`, `data_status`, `last_verified`) for deterministic metadata filtering and join operations.
+3. `data/composite_products.json`: Key-value JSON document mapping `Product_ID` to the complete synthesized natural-language description used directly for LLM prompt context assembly (State 5).
 
 ### 4.5 Data versioning and migration strategy
 
@@ -417,6 +440,9 @@ At the current scale (~1,700 total rows across sheets, generating ~139 composite
 2. Compare against a stored `last_embed_timestamp` (persisted in a small metadata file alongside the embedding index).
 3. If the dataset is newer, regenerate the .npy file and metadata DataFrame from scratch.
 4. If timestamps match, load the existing embedding index as-is.
+
+**Concurrency Rule during Re-Embedding (STR-06):**
+In-flight queries always execute against the pre-loaded embeddings in memory. Re-embedding is deferred until no active worker thread is running. The re-embed operation is then dispatched on the background worker thread pool, atomically swapping the in-memory embedding matrix pointer upon completion. Under no circumstance does a background re-index block, corrupt, or cancel an active in-flight user query.
 
 This approach is simple, deterministic, and sufficient at this scale. Revisit if the dataset grows beyond ~500 products.
 
@@ -441,7 +467,7 @@ When the dataset outgrows Excel (>500 products or >3 concurrent editors), migrat
 | FR-1c | System shall combine semantic search with keyword-based metadata filtering (hybrid search) for higher retrieval accuracy. | 1 | Must | Input containing exact Sub_Domain names (e.g., "SIEM") or OEM names (e.g., "Palo Alto") triggers a metadata filter in addition to semantic search. |
 | FR-2 | System shall classify the requirement into the relevant Domain_Category / Sub_Domain. | 1 | Must | Classification matches the expected sub-domain for at least 80% of the test set (Section 12). |
 | FR-3 | System shall retrieve and present 1–5 candidate products with reasoning grounded in dataset fields (Features, Pros/Cons, Domain_Comparables). | 1 | Must | Each recommendation includes at least 2 cited dataset fields. The correct product appears in the top 3 for at least 80% of test cases. |
-| FR-4 | System shall never state a product capability, spec, or comparison that isn't traceable to a dataset row. Post-generation validation shall check this. | 1 | Must | Deterministic post-generation check flags all unverifiable claims with ⚠️ markers. |
+| FR-4 | System shall never state a product capability, spec, or comparison that isn't traceable to a dataset row. Post-generation validation shall check this. | 1 | Must | Deterministic post-generation check flags all unverifiable claims with `[Unverified claim]` markers. |
 | FR-5 | System shall recommend a licensing model/term for a selected product, with justification, sourced from Product_Commercial. | 2 | Must | Recommendation cites specific `Licensing_Model` and `License_Term_Options` from the dataset. |
 | FR-6 | System shall never generate, estimate, or display pricing under any circumstance. A post-generation filter shall catch and strip any pricing content. | 1 | Must | Price-mention regex filter catches $, €, ₹, "cost", "price", "per user/month", "annual fee", etc. Any match is stripped and logged. |
 | FR-7 | System shall generate a structured BOM (.xlsx) from engineer-confirmed product selections, quantities, and license terms. | 2 | Must | BOM contains all required columns (Section 3, Phase 2, step 3); price columns are present but blank. |
@@ -453,8 +479,8 @@ When the dataset outgrows Excel (>500 products or >3 concurrent editors), migrat
 
 | ID | Requirement | Phase | Priority | Acceptance Criteria |
 |---|---|---|---|---|
-| FR-11 | System shall display a confidence score (HIGH / MEDIUM / LOW) with every recommendation, based on retrieval similarity scores and Data_Status of cited rows. | 1 | Must | HIGH: top result similarity ≥ 0.60 AND all cited rows Confirmed. MEDIUM: similarity ≥ 0.35 OR some cited rows Draft. LOW: similarity < 0.35 OR any cited row TBD. |
-| FR-12 | System shall show the source citation (Product_ID, sheet name, Data_Status) for every factual claim in a recommendation. | 1 | Must | Every product name, feature, and differentiator claim has a visible 📎 citation. |
+| FR-11 | System shall display a normalized Fit Score (0–100%) and confidence tier (HIGH / MEDIUM / LOW) with every recommendation, based on canonical fit score formula and Data_Status of cited rows. | 1 | Must | Canonical formula: `fit_score = max(0, min(100, (sim - 0.20)/(0.80 - 0.20) * 100))`. HIGH: `fit_score >= 85%` (sim $\ge 0.71$) AND all cited rows Confirmed. MEDIUM: `fit_score >= 65%` (sim $\ge 0.59$) OR some cited rows Draft. LOW: `fit_score < 65%` (sim $< 0.59$) OR any cited row TBD. |
+| FR-12 | System shall show the source citation (Product_ID, sheet name, Data_Status) for every factual claim in a recommendation. | 1 | Must | Every product name, feature, and differentiator claim has a visible `[Source: Product_ID, sheet, status]` citation tag. |
 | FR-13 | System shall show the engineer a preview of extracted text from uploaded documents before proceeding with analysis. | 1 | Must | Preview panel shows extracted text; "Confirm" and "Edit" buttons are available. |
 | FR-14 | System shall warn the user when input is too short (<10 characters) and suggest providing more detail. | 1 | Should | Warning message is shown; user can override and proceed anyway. |
 | FR-15 | System shall display a side-by-side comparison table for recommended products using Domain_Comparables data, when available. | 1 | Should | Comparison table is shown when the recommended products' sub-domain has entries in Domain_Comparables. |
@@ -532,8 +558,8 @@ When the dataset outgrows Excel (>500 products or >3 concurrent editors), migrat
   - **Visible Focus State:** Focused controls display a high-visibility 2px solid accent border (`#0EA5E9` in Dark, `#0284C7` in Light) with zero outline clipping.
 - **Color Contrast & Readability:** All text and interactive elements satisfy WCAG 2.1 AA contrast standards (minimum 4.5:1 for standard body text, 3:1 for large display headers and active UI boundaries). Text against dark background (`#F8FAFC` on `#0F172A`) delivers an ultra-legible 14.8:1 contrast ratio.
 - **Colorblind-Safe Redundant Indicators:** System status indicators never rely on hue alone:
-  - Ollama status displays both colored badge and text (`🟢 Online (11434)` / `🔴 Offline — Start Service`).
-  - Confidence ratings display dual cues: color tint + explicit badges (`[HIGH ≥85%]`, `[MED 65–84%]`, `[LOW <65%]`).
+  - Ollama status displays a hardware-accelerated vector indicator (8×8px filled circle rendered via `CTkCanvas.create_oval()` with `#10B981` / `#EF4444`) alongside explicit text badges: `[ONLINE :11434]` / `[OFFLINE — Start Service]`. Bitmap emojis are strictly avoided to ensure platform-independent rendering.
+  - Confidence ratings display dual cues: color tint + explicit canonical Fit Score badges: `[HIGH ≥85% Fit]` (cosine similarity $\ge 0.71$ & Confirmed), `[MED 65–84% Fit]` (cosine similarity $\ge 0.59$ or Draft), and `[LOW <65% Fit]` (cosine similarity $< 0.59$ or TBD), calculated via canonical `fit_score` formula (Section 2.6).
 - **Reduced-Motion Support:** Respects Windows system setting (`Ease of Access → Turn off unnecessary animations` / `prefers-reduced-motion`). When enabled, UI disables the indeterminate progress shimmer, card expand easing, and toast slide transitions, instantly rendering target states.
 - **Plain Language Error Presentation:** User-facing errors avoid raw stack traces, Python exception names, or low-level socket codes, presenting actionable, step-by-step resolution advice.
 - **Dynamic Font Scaling:** Base typography is configured with scalable point sizes (Body: 13pt / 14px), respecting Windows OS text zoom accessibility preferences without layout truncation.
@@ -645,7 +671,7 @@ The user interface of **iValue PRISM** is engineered using **CustomTkinter**, de
 #### 8.1.1 Application Identity, Branding & Window Chrome
 
 - **Window Title Bar:** Native Windows title bar styled to match the dark/light title chrome:
-  - Title string: `iValue PRISM — Presales Recommendation & Intelligence System [v3.2]`
+  - Title string: `iValue PRISM — Presales Recommendation & Intelligence System [v3.3]`
   - Standard Windows controls: Minimize, Maximize / Restore, and Close buttons.
 - **Application Icon & Assets:**
   - Multi-resolution Windows Icon file: `assets/branding/ivalue_prism.ico` embedded directly into the executable via PyInstaller (`--icon`). Supports 16×16, 24×24, 32×32, 48×48, 64×64, 128×128, and 256×256 pixels.
@@ -747,32 +773,33 @@ The interface layout adheres strictly to an 8-point / 4-point incremental spacin
 ##### 1. Sidebar Control Center (Width: 280px)
 - **Header Lockup:**
   - 40×40px refractive PRISM logo icon + "iValue PRISM" in H2 Semi-Bold.
-  - v3.2 badge pill (`#4C1D95` background, `#F8FAFC` text, 4px radius).
+  - v3.3 badge pill (`#4C1D95` background, `#F8FAFC` text, 4px radius).
 - **Live System Status Panel (Surface Card):**
   - Background `#0B1120` (Dark) / `#F1F5F9` (Light), border 1px `border_subtle`, corner radius 8px, padding 12px.
-  - Ollama Status: Pulsing dot (🟢 `#10B981` / 🔴 `#EF4444`) + text `Ollama Online :11434`. If offline, embedded 28px height button "Start Daemon".
-  - Model Badge: `Phi-4-mini (3.8B Q4_K_M)` in Body Small monospace.
+  - Ollama Status: Hardware-accelerated vector indicator (8×8px circle rendered via `CTkCanvas.create_oval()` with `#10B981` / `#EF4444`) + text `Ollama Online :11434` (or `[OFFLINE]`). If offline, embedded 28px height button "Start Daemon".
+  - Model Badge: `phi4-mini (3.8B Q4_K_M)` in Body Small monospace.
   - Index Status: `139 Catalog Products Active` with verified checkmark.
   - Memory Meter: Live RAM bar indicator showing PRISM process usage (`e.g., 78 MB RAM (Safe)`).
-- **Session History Reel:**
-  - Scrollable frame with recent queries from current session.
-  - Item styling: 1-line query preview + timestamp, 6px radius, hover background tint `#1E293B`. Click restores full workspace state.
+- **Session History Reel (Session Management Specification):**
+  - **Storage & Lifecycle:** Maintained as an in-memory FIFO list of up to 20 `SessionSnapshot` dataclass instances (`query_id`, `timestamp`, `requirement_text`, `recommendations`, `user_actions`, `export_state`). The history is strictly volatile (in-memory only; cleared upon application exit in Phase 1).
+  - **Item Styling:** 1-line query preview + timestamp, 6px radius, hover background tint `#1E293B`.
+  - **Workspace Restoration:** Clicking any session snapshot immediately repopulates the input textbox, re-renders candidate recommendation cards from cached data without re-running inference, and restores accepted/rejected decision states.
 - **Utility Actions:**
-  - "➕ New Query" button (accent outline, 36px height).
-  - "🧹 Clear Workspace" and "⚙️ Re-index Catalog" secondary links.
+  - "New Query" button (accent `+` prefix, 36px height, accent outline).
+  - "Clear Workspace" and "Re-index Catalog" secondary links (styled with clean 16×16 icons from `assets/icons/`).
 
 ##### 2. Requirement Input Section
 - **Header Area:**
   - Section title: "Customer Requirement & RFP Input" (H2 Semi-Bold).
-  - File Loader Button: "📂 Load RFP (.pdf, .docx, .txt)" styled as secondary button with dashed border accent. Opens native Windows file picker.
+  - File Loader Button: "Load RFP (.pdf, .docx, .txt)" styled as secondary button with dashed border accent and folder icon (`assets/icons/folder.png` / Segoe MDL2 `\uE838`). Opens native Windows file picker.
 - **Input Textbox (`CTkTextbox`):**
   - Height: 140px, corner radius 8px, border width 1px `border_subtle`.
   - Placeholder: *"Type customer technical requirement, copy-paste RFP excerpt, or load document..."* (italicized `text_muted`).
   - Active Focus State: 2px solid glow border in `brand_accent` (`#0EA5E9`).
 - **Footer Metadata Bar:**
-  - Live character & token gauge: *"Tokens: ~145 / 2,048 | Characters: 620 / 10,000"*.
+  - Live character & token gauge: *"Tokens: ~145 / 2,048 | Characters: 620 / 10,000"*, evaluated dynamically using the BPE estimator heuristic `estimated_tokens = int(len(text.split()) * 1.3)`.
   - Gauge color transitions: Green (<8,000 chars) $\rightarrow$ Amber (8,000–10,000 chars) $\rightarrow$ Crimson (>10,000 chars).
-  - Primary Action Button: Prominent **"⚡ Analyze Requirement"** button (Height: 42px, radius: 8px, font: H3 Bold, background `brand_accent`).
+  - Primary Action Button: Prominent **"Analyze Requirement"** button (Height: 42px, radius: 8px, font: H3 Bold, background `brand_accent`, search icon `assets/icons/search.png` or Segoe MDL2 `\uE721`).
 
 ##### 3. Inference Progress & Live Token Streaming
 - **Progress Shimmer Bar (`CTkProgressBar`):**
@@ -790,18 +817,18 @@ The interface layout adheres strictly to an 8-point / 4-point incremental spacin
 ##### 4. Results Canvas & Recommendation Cards
 - **Verdict Summary Header:**
   - Domain Badge: e.g., `Domain: Enterprise & Cyber Security > Identity & Access Management`
-  - Confidence Pill: Pill container with bold label `🟢 HIGH CONFIDENCE (92% Fit)` in `#10B981` with 10% translucent background.
-  - One-Click Clipboard CTA: **"📋 Copy Recommendation"** button (Height: 36px, corner radius 8px, secondary style). On click, morphs to checkmark `✓ Copied to Clipboard!` for 2.0 seconds.
+  - Confidence Pill: Pill container with bold label `[HIGH CONFIDENCE: 92% Fit]` in `#10B981` with 10% translucent background (governed by canonical `fit_score` formula in Section 2.6).
+  - One-Click Clipboard CTA: **"Copy Recommendation"** button (Height: 36px, corner radius 8px, secondary style with clipboard icon `assets/icons/copy.png` or Segoe MDL2 `\uE8C8`). On click, morphs to checkmark `✓ Copied to Clipboard!` for 2.0 seconds.
 - **Primary Product Recommendation Card (Top Pick):**
   - Styling: Elevated card with 1px border `border_accent` (`#38BDF8`), 4px left accent indicator bar in `brand_accent`, corner radius 12px, padding 20px.
   - OEM & Product Title: H1 Bold product title (e.g., `CyberArk Privileged Access Manager`) + OEM badge.
-  - Citation Pill: `OEM-007-P01 📎 Confirmed` in Body Small, clickable to view raw catalog row.
+  - Citation Pill: `[Catalog: OEM-007-P01 | Confirmed]` in Body Small, clickable to view raw catalog row.
   - Executive Rationale: Body Large text explaining architectural fit.
   - Key Differentiators & Features: Rendered as flex-wrap pill chips with subtle backgrounds.
   - Pros & Cons Grid: 2-column micro-card layout (Green `+` for pros, Amber `-` for cons).
   - Engineer Decision Toolbar (FR-9):
     - `[✓ Accept]` (Accent button, 32px height)
-    - `[✏️ Modify Rationale]` (Ghost button, 32px height)
+    - `[Modify Rationale]` (Ghost button with edit icon `assets/icons/edit.png`, 32px height)
     - `[✕ Exclude / Reject]` (Destructive ghost button, 32px height)
 - **Alternative Candidate Cards (Collapsed by default):**
   - Muted card surface (`#131F37`), subtle border, clickable header to expand/collapse with smooth 200ms height animation.
@@ -810,10 +837,10 @@ The interface layout adheres strictly to an 8-point / 4-point incremental spacin
 - Appears immediately once at least one candidate product is "Accepted":
   - Clean table listing: Product Name, Category, License Quantity (`CTkEntry` spinbox with `+` / `-` steppers), License Term dropdown (`1-Year`, `3-Year`, `5-Year`, `Perpetual`), and Support Tier dropdown (`Standard`, `24x7 Enterprise`, `Mission Critical`).
   - Compliance Warning Banner:
-    > *⚠️ Pricing is intentionally omitted and must be completed by Sales per iValue commercial policy.*
+    > *[!] Pricing is intentionally omitted and must be completed by Sales per iValue commercial policy.*
   - Export Buttons:
-    - **"📊 Export BOM (.xlsx)"** — Generates formatted Excel workbook via `openpyxl`.
-    - **"📄 Export BOQ (.docx)"** — Generates formal technical proposal document via `python-docx`.
+    - **"Export BOM (.xlsx)"** — Generates formatted Excel workbook via `openpyxl` (table icon `assets/icons/table.png`).
+    - **"Export BOQ (.docx)"** — Generates formal technical proposal document via `python-docx` (document icon `assets/icons/document.png`).
 
 ---
 
@@ -821,6 +848,8 @@ The interface layout adheres strictly to an 8-point / 4-point incremental spacin
 
 - **Default Geometry:** **1280×820 pixels**, centered on primary monitor on first launch.
 - **Minimum Geometry:** **1024×640 pixels** (hard constraint enforced via `root.minsize(1024, 640)`). Prevents layout breakage on 1366×768 budget displays.
+- **First-Run Experience:**
+  - If `%APPDATA%\iValue_PRISM\config.json` is absent on launch, the application creates a default configuration file with `theme: "dark"`, `window_size: [1280, 820]`, `centered: true`, empty session history, and default retrieval thresholds (`similarity_floor: 0.20`, `similarity_warning: 0.35`).
 - **Fullscreen & Maximized Behavior:**
   - Full maximize and Windows 11 Snap Assist (half-screen, two-thirds, quadrant layouts) fully supported.
   - On widescreen/4K monitors (e.g., 2560×1440 or 3840×2160):
@@ -891,7 +920,7 @@ Subtle micro-animations provide immediate tactile feedback while maintaining 60 
 - **Button Press Physics:** On mouse-click, interactive buttons scale to 97% size (`scale(0.97)`) for 80ms before returning to normal scale, providing physical tactile feedback.
 - **Card Expansion Accordion:** Clicking alternative candidate cards triggers a 180ms smooth height expansion.
 - **Confidence Badge Pulse:** When results finish rendering, the confidence score pill performs a single gentle scale pulse ($1.00 \rightarrow 1.06 \rightarrow 1.00$ over 400ms) to draw the engineer's eye to recommendation certainty.
-- **Clipboard Morph:** The copy button switches icon and text from `📋 Copy Recommendation` to `✓ Copied to Clipboard!` with a light green glow for 2.0 seconds before reverting.
+- **Clipboard Morph:** The copy button switches text and visual feedback from `Copy Recommendation` to `✓ Copied to Clipboard!` with a light green accent for 2.0 seconds before reverting.
 - **Progress Bar Shimmer:** During inference, a 2.0-second looping gradient sweep traverses the indeterminate progress bar.
 - **Reduced-Motion Compliance:** If the user has Windows OS setting *"Turn off unnecessary animations"* enabled, all scale transformations, shimmers, and slide animations are bypassed, rendering target states instantaneously.
 
@@ -913,11 +942,11 @@ PRISM/
 │   ├── raw/
 │   │   └── iValue_Solution_Recommendation_Dataset.xlsx  # Master OEM dataset
 │   ├── composite_products.json       # Pre-rendered 139 product natural language docs
-│   ├── domain_taxonomy.json          # 34 Sub-domain classification mapping
+│   ├── domain_taxonomy.json          # 33 Sub-domain classification mapping
 │   ├── embeddings.npy                # 139 × 384 bge-small pre-computed vectors
 │   └── metadata.pkl                  # Fast-lookup metadata table
 ├── docs/
-│   ├── iValue_Presales_Automation_SRS.md   # System requirements specification (v3.2)
+│   ├── iValue_Presales_Automation_SRS.md   # System requirements specification (v3.3)
 │   ├── iValue_Presales_Automation_SRS.pdf  # Compiled PDF specification
 │   └── benchmarks/                         # Phase 0 validation artifacts
 │       ├── hardware_spike_results.json
@@ -943,7 +972,7 @@ To prevent "garbage-in, garbage-out" when extracting requirements from uploaded 
 
 - **Modal Window Specifications:**
   - Geometry: **760×540 pixels**, modal overlay centered over the parent PRISM application with dimming background backdrop (`#00000088`).
-  - Window Chrome: Borderless top header with title `"📄 Extracted Requirement Review"` (H2 Semi-Bold) and `[✕]` close button.
+  - Window Chrome: Borderless top header with title `"Extracted Requirement Review"` (H2 Semi-Bold, document icon `assets/icons/document.png`) and `[✕]` close button.
   - Subtitle: *"Extracted from `<filename>` (Size: `<filesize> KB`). Review and edit the parsed text before running catalog matching."*
 - **Interactive Review Canvas (`CTkTextbox`):**
   - Dimensions: Full modal width minus 32px padding, height 360px.
@@ -962,7 +991,7 @@ To prevent "garbage-in, garbage-out" when extracting requirements from uploaded 
 While the default interface is configured in dark mode for maximum contrast and reduced eye fatigue, engineers can dynamically toggle application themes:
 
 - **Control Location:** Anchored at the bottom of the left sidebar control center.
-- **Widget:** CustomTkinter segmented control (`CTkSegmentedButton`): `[ 🌙 Dark | ☀️ Light | 💻 System ]`.
+- **Widget:** CustomTkinter segmented control (`CTkSegmentedButton`): `[ Dark | Light | System ]`.
 - **Runtime Execution:**
   - Invokes `customtkinter.set_appearance_mode("dark" | "light" | "system")` instantaneously with zero window flickering and without requiring application restart.
   - Dynamically updates all card borders, canvas backgrounds, and badge tints per the token specification in Section 8.1.2.
@@ -978,8 +1007,8 @@ Every recommendation card features an interactive action toolbar enabling presal
   - Visuals: Accent pill button (Height: 32px, background `#059669` / `#10B981` in dark mode).
   - Action: Tags the candidate product as "Selected" for inclusion in the BOM/BOQ export panel. Emits an `ACCEPT` action event to `logs/query_log.jsonl`.
   - UI State: The recommendation card border shifts to 2px solid emerald green (`#10B981`), a checkmark pill appears in the card header, and the bottom BOM/BOQ export panel automatically unhides/expands.
-- **`[✏️ Modify Rationale]` Button:**
-  - Visuals: Ghost button with pencil icon (Height: 32px, outline border `border_subtle`).
+- **`[Modify Rationale]` Button:**
+  - Visuals: Ghost button with edit icon `assets/icons/edit.png` (Height: 32px, outline border `border_subtle`).
   - Action: Transforms the static recommendation rationale label into an in-place editable `CTkTextbox`. The engineer can adjust wording, add specific customer nuances, or tailor the value proposition.
   - Save & Cancel: Adds two micro-buttons `[Save Edit]` and `[Revert]`. On save, the diff is captured and logged for retrieval evaluation (FR-9).
 - **`[✕ Exclude / Reject]` Button:**
@@ -998,8 +1027,8 @@ Presales engineers require instant access to generated documents without searchi
     - BOQ: `iValue_BOQ_<PrimaryOEM>_<CustomerName>_<YYYYMMDD>.docx`
 - **Shell Completion Hook:**
   - Upon successful generation, PRISM dispatches an interactive toast notification with two action CTAs:
-    - **"📄 Open Document"** — Executes `os.startfile(saved_path)` to launch the generated file directly in Microsoft Word or Excel.
-    - **"📂 Show in Explorer"** — Executes `subprocess.Popen(f'explorer /select,"{saved_path}"')` to open Windows Explorer with the generated proposal file highlighted.
+    - **"Open Document"** — Executes `os.startfile(saved_path)` to launch the generated file directly in Microsoft Word or Excel (document icon `assets/icons/document.png`).
+    - **"Show in Explorer"** — Executes `subprocess.Popen(f'explorer /select,"{saved_path}"')` to open Windows Explorer with the generated proposal file highlighted (folder icon `assets/icons/folder.png`).
 
 ---
 
@@ -1008,137 +1037,156 @@ Presales engineers require instant access to generated documents without searchi
 1. **Requirement Analysis Flow**:
    - *Step 1*: Engineer opens iValue PRISM (Ollama connectivity is verified automatically on launch).
    - *Step 2*: Engineer types or pastes the customer's requirement into the main text box (or loads a `.pdf`/`.docx` file).
-   - *Step 3*: Engineer clicks **"⚡ Analyze Requirement"**.
+   - *Step 3*: Engineer clicks **"Analyze Requirement"**.
    - *Step 4*: Main thread spawns a background worker thread. The input controls disable, and the progress bar animates with live step-by-step updates.
    - *Step 5*: Tokens stream into the preview box as Phi-4-mini generates the response (~30–55s total).
    - *Step 6*: Generation completes, post-generation validation checks pass, and recommendation cards appear on screen.
 2. **Review & Action Flow**:
    - *Step 1*: Engineer reviews candidate products and confidence indicators.
-   - *Step 2*: Engineer clicks **"📋 Copy Recommendation"** to instantly paste the output into an email or technical proposal.
+   - *Step 2*: Engineer clicks **"Copy Recommendation"** to instantly paste the output into an email or technical proposal.
    - *Step 3*: If drafting formal quotation documents, engineer marks products as "Accepted", inputs desired license quantities, and clicks **"Export BOQ (.docx)"**.
    - *Step 4*: System generates the `.docx` document with blank pricing fields and prompts the engineer to save it locally.
 3. **File Ingestion Flow**:
-   - *Step 1*: Engineer clicks "Load RFP Document" and selects an RFP `.pdf` or `.docx` from Windows Explorer.
+   - *Step 1*: Engineer clicks "Load RFP (.pdf, .docx, .txt)" and selects an RFP file from Windows Explorer.
    - *Step 2*: System extracts text via `pdfplumber` / `python-docx` locally.
    - *Step 3*: A preview dialog shows the extracted text. The engineer confirms the text, which populates the requirement input area.
 4. **Error Recovery Flow**:
    - *Ollama Offline*: If Ollama is not running, PRISM attempts background launch. If launch fails or Ollama is missing, a friendly dialog advises: *"Ollama service could not be contacted. Please start Ollama or install it from ollama.com."*
-   - *No Catalog Match*: If similarity scores are <0.35, a yellow warning card advises that the customer need may fall outside iValue's current 57 OEM offerings.
+   - *No Catalog Match*: If similarity scores are $<0.35$ (and $\ge 0.20$), a LOW confidence warning card advises that the customer need may fall outside iValue's current 57 OEM offerings. If all scores $<0.20$, zero-result message is shown.
 
-### 8.3 Internal Python API & Service Contracts
+### 8.3 Internal Python Service Contracts
 
-In the desktop application architecture, these contracts define the internal Python signatures between the CustomTkinter UI controllers and the `prism_core` RAG engine. They also serve as the schema definitions if an optional local REST sidecar is exposed:
+In the desktop application architecture, these contracts define the internal Python interfaces between the CustomTkinter UI controllers and the `prism_core` engine via direct, in-process method invocation. No HTTP server, network socket latency, or web browser processes are involved. (If an optional REST sidecar is ever developed for external integrations, it belongs in a future addendum wrapping these service contracts).
 
-- **POST /api/v1/analyze**
-  - *Description*: Accepts requirement text or file, returns RAG-based recommendations.
-  - *Request (Text)*:
-    ```json
-    {
-      "query_text": "Need an enterprise firewall with deep packet inspection for 500 users.",
-      "top_k": 3
-    }
-    ```
-  - *Response*:
-    ```json
-    {
-      "query_id": "req-8f7a9",
-      "status": "success",
-      "latency_ms": 85000,
-      "recommendations": [
-        {
-          "product_id": "OEM-001-P01",
-          "oem": "Palo Alto Networks",
-          "product_name": "PA-3200 Series",
-          "domain": "Enterprise & Cyber Security",
-          "sub_domain": "Network Security",
-          "confidence_score": 0.92,
-          "confidence_level": "HIGH",
-          "rationale": "Matches enterprise firewall and DPI requirements...",
-          "citations": [
-            {"sheet": "Products", "product_id": "OEM-001-P01", "field": "Key_Differentiator", "data_status": "Confirmed"},
-            {"sheet": "Product_Features", "product_id": "OEM-001-P01", "field": "Feature_Name", "value": "Deep Packet Inspection"}
-          ],
-          "features": ["DPI", "Threat Prevention"],
-          "pros": ["High throughput"],
-          "cons": ["Complex initial configuration"]
-        }
-      ]
-    }
-    ```
+```python
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Any, Callable
 
-- **POST /api/v1/bom/generate**
-  - *Description*: Accepts confirmed products and quantities, returns a structured BOM file.
-  - *Request*:
-    ```json
-    {
-      "query_id": "req-8f7a9",
-      "customer_name": "Acme Corp",
-      "items": [
-        {"product_id": "OEM-001-P01", "quantity": 2, "license_term": "3-year", "support_tier": "Premium"}
-      ]
-    }
-    ```
-  - *Response*:
-    ```json
-    {
-      "status": "success",
-      "download_url": "/api/v1/downloads/bom-req-8f7a9.xlsx"
-    }
-    ```
+@dataclass
+class Citation:
+    sheet: str
+    product_id: str
+    field: str
+    data_status: str
+    value: Optional[str] = None
 
-- **POST /api/v1/boq/generate**
-  - *Description*: Accepts BOM reference, returns a BOQ document.
-  - *Request*: Same structure as BOM generation or accepts a BOM reference ID.
-  - *Response*: Similar structure providing a download URL for the `.docx` BOQ file.
+@dataclass
+class ProductRecommendation:
+    product_id: str
+    oem: str
+    product_name: str
+    domain: str
+    sub_domain: str
+    confidence_score: float              # Raw cosine similarity (e.g., 0.75)
+    fit_score: float                     # Normalized 0-100% Fit Score via Section 2.6 formula
+    confidence_level: str                # "HIGH" | "MEDIUM" | "LOW"
+    rationale: str                       # Grounded LLM reasoning
+    citations: List[Citation]
+    features: List[str]
+    pros: List[str]
+    cons: List[str]
 
-- **GET /api/v1/products/{product_id}**
-  - *Description*: Returns full dataset details for a specific product.
-  - *Response*:
-    ```json
-    {
-      "product_id": "OEM-001-P01",
-      "oem": "Palo Alto Networks",
-      "product_name": "PA-3200 Series",
-      "domain": "Enterprise & Cyber Security",
-      "sub_domain": "Network Security",
-      "what_is_it": "Next-generation firewall with advanced threat prevention...",
-      "features": [{"name": "DPI", "category": "Security", "description": "..."}],
-      "pros_cons": {"pros": ["..."], "cons": ["..."]},
-      "commercial": {"licensing_model": "Subscription", "license_terms": ["1-year", "3-year"]}
-    }
-    ```
+@dataclass
+class AnalyzeRequest:
+    query_text: str
+    top_k: int = 5
+    min_similarity: float = 0.20         # SIMILARITY_FLOOR
 
-- **GET /api/v1/domains**
-  - *Description*: Returns the taxonomy of the 4 domains and 33 sub-domains.
-  - *Response*:
-    ```json
-    {
-      "domains": [
-        {
-          "name": "Enterprise & Cyber Security",
-          "sub_domains": ["Network Security", "Endpoint Security", "PAM", "SIEM, SOAR & Security Operations", "..."]
-        }
-      ]
-    }
-    ```
+@dataclass
+class AnalyzeResponse:
+    query_id: str
+    status: str                          # "success" | "zero_results" | "error"
+    latency_ms: int
+    recommendations: List[ProductRecommendation]
+    error_message: Optional[str] = None
 
-- **GET /api/v1/health**
-  - *Description*: System health and model status checks.
-  - *Response*:
-    ```json
-    {
-      "status": "healthy",
-      "ollama_status": "online",
-      "model_loaded": "phi-4-mini:Q4_K_M",
-      "embedding_model": "bge-small-en-v1.5",
-      "embedding_file_status": "available",
-      "embedding_index_count": 139,
-      "dataset_last_modified": "2026-09-01T14:30:00Z",
-      "last_embed_timestamp": "2026-09-01T14:35:00Z",
-      "ram_usage_mb": 6800,
-      "num_ctx": 2048
-    }
-    ```
+@dataclass
+class BomItem:
+    product_id: str
+    quantity: int = 1
+    license_term: str = "1-Year"
+    support_tier: str = "Standard"
+    remarks: str = ""
+
+@dataclass
+class BomExportRequest:
+    query_id: str
+    customer_name: str
+    items: List[BomItem]
+    output_path: str                     # Local destination path for .xlsx
+
+@dataclass
+class BoqExportRequest:
+    query_id: str
+    customer_name: str
+    project_reference: str
+    prepared_by: str
+    items: List[BomItem]
+    output_path: str                     # Local destination path for .docx
+    currency_code: str = ""              # Optional currency indicator (default: neutral blank)
+
+@dataclass
+class ExportResponse:
+    status: str                          # "success" | "error"
+    file_path: str                       # Resolved absolute local file path
+    error_message: Optional[str] = None
+
+@dataclass
+class ProductDetails:
+    product_id: str
+    oem: str
+    product_name: str
+    domain: str
+    sub_domain: str
+    what_is_it: str
+    features: List[Dict[str, str]]
+    pros_cons: Dict[str, List[str]]
+    commercial: Dict[str, Any]
+
+@dataclass
+class DomainTaxonomyResponse:
+    domains: List[Dict[str, Any]]        # 4 top-level domains, 33 sub-domains
+
+@dataclass
+class SystemHealthResponse:
+    status: str                          # "healthy" | "degraded" | "offline"
+    ollama_status: str                   # "online" | "offline"
+    model_loaded: str                    # Canonical tag: "phi4-mini"
+    embedding_model: str                 # "bge-small-en-v1.5"
+    embedding_file_status: str           # "available" | "stale" | "missing"
+    embedding_index_count: int           # 139
+    dataset_last_modified: str
+    last_embed_timestamp: str
+    ram_usage_mb: float
+    num_ctx: int = 2048
+
+class PrismService:
+    """Core in-process service contract exposed by src/core/ to the GUI."""
+
+    def analyze(self, req: AnalyzeRequest, token_stream_callback: Optional[Callable[[str], None]] = None) -> AnalyzeResponse:
+        """Executes document ingestion, hybrid retrieval, streaming Ollama reasoning, and post-validation."""
+        ...
+
+    def generate_bom(self, req: BomExportRequest) -> ExportResponse:
+        """Generates formatted Excel BOM (.xlsx) with blank pricing columns at the requested local path."""
+        ...
+
+    def generate_boq(self, req: BoqExportRequest) -> ExportResponse:
+        """Generates formal Word proposal (.docx) with letterhead, watermark, and blank pricing columns."""
+        ...
+
+    def get_product(self, product_id: str) -> Optional[ProductDetails]:
+        """Returns structured details, features, and commercial terms for a specific catalog product."""
+        ...
+
+    def get_domains(self) -> DomainTaxonomyResponse:
+        """Returns the canonical taxonomy of 4 domains and 33 sub-domains."""
+        ...
+
+    def get_health(self) -> SystemHealthResponse:
+        """Inspects Ollama daemon connectivity, loaded models, memory usage, and index readiness."""
+        ...
+```
 
 ### 8.4 Output Document Formats
 
@@ -1168,7 +1216,7 @@ Includes standard iValue InfoSolutions headers and a disclaimer row: "DRAFT — 
 - **Header**: iValue InfoSolutions letterhead (configurable template)
 - **Metadata section**: Customer Name, Project Name/Reference, Date, Prepared By
 - **Line items table**: Mirrors BOM structure with blank price columns
-- **Price column headers**: "Unit Price (INR)" and "Total Price (INR)" — present but all cells blank, with footer note: "Pricing to be completed by iValue Sales Team"
+- **Price column headers**: "Unit Price" and "Total Price" (currency-neutral headers, with optional configurable `currency_code` per proposal) — present but all cells strictly blank, with footer note: "Pricing to be completed by iValue Sales Team"
 - **Footer**: Standard iValue terms placeholder, document version, generation timestamp
 - **Watermark**: "DRAFT — PRICING NOT INCLUDED"
 
@@ -1177,8 +1225,8 @@ Includes standard iValue InfoSolutions headers and a disclaimer row: "DRAFT — 
 - Domain/Sub_Domain classification
 - For each recommended product:
   - Product summary card
-  - Reasoning with inline citations (📎 markers)
-  - Confidence level and score
+  - Reasoning with inline citations (`[Source: Product_ID, sheet, status]` tags)
+  - Confidence level and normalized Fit Score
 - Comparison table (if Domain_Comparables data available)
 - Alternatives considered
 - Disclaimer: "This recommendation was generated by an AI-assisted system and has been reviewed by [Engineer Name]. All product claims are sourced from iValue's internal product database."
@@ -1206,7 +1254,11 @@ Chosen for: zero cost, zero request/token limits, fully offline capability, and 
 
 #### 9.1.1 Vector Search: Why NumPy Over a Database
 
-At 139 products with 384-dim embeddings, total data is 213 KB. Full cosine similarity scan takes <1ms. No database needed. Embeddings stored as `data/embeddings.npy`, metadata lookup table as `data/metadata.pkl`, and natural language summaries as `data/composite_products.json`. ChromaDB/LanceDB listed as upgrade path if dataset exceeds 500 products.
+At 139 products with 384-dim embeddings, total data is 213 KB. Full cosine similarity scan takes <1ms. No external database engine needed. Data files are decoupled cleanly by operational role:
+- `data/embeddings.npy`: Pre-computed `(139, 384)` NumPy float32 matrix used for sub-millisecond vectorized cosine distance calculations.
+- `data/metadata.pkl`: Serialized Pandas DataFrame storing structured attributes (`product_id`, `oem_name`, `domain_category`, `sub_domain`, `data_status`, etc.) for deterministic pre-filtering and joins.
+- `data/composite_products.json`: Key-value store mapping `product_id` to the complete synthesized natural-language representation for LLM prompt context assembly.
+ChromaDB/LanceDB are listed as potential upgrade paths only if the catalog exceeds 500 products.
 
 ```python
 import numpy as np
@@ -1255,27 +1307,32 @@ The project evaluated multiple desktop and web frameworks before selecting Custo
 
 **Decision Rationale:** CustomTkinter is the optimal choice for iValue PRISM. It offers a modern dark-mode aesthetic matching Windows 11 design principles, uses minimal RAM (critical for 8 GB laptops), has an unencumbered MIT license, and packages reliably into a single portable Windows executable folder via PyInstaller.
 
-### 9.4 Python Dependencies
+### 9.4 Python Dependencies & Packaging Manifest
+
+Dependencies are pinned in `requirements.txt` at the repository root with exact production versions for reproducible packaging. An optional `pyproject.toml` is provided for development tooling and local test runners.
 
 ```
 # Desktop GUI
-customtkinter           # Modern UI library wrapping Tkinter
-darkdetect              # OS dark/light mode detection
-pillow                  # Image loading for UI icons and letterheads
+customtkinter>=5.2.0    # Modern UI library wrapping Tkinter
+darkdetect>=0.8.0       # Fallback OS dark/light mode detection for legacy Windows builds
+pillow>=10.0.0          # Image loading and DPI scaling for brand graphics
 
 # Core AI & Search Pipeline
-ollama                  # Local Ollama client
-sentence-transformers   # bge-small-en-v1.5 embedding model
-numpy                   # High-speed vector cosine similarity
-pandas                  # Tabular metadata filtering and joins
+ollama>=0.3.0           # Local Ollama daemon Python client
+sentence-transformers>=2.2.2 # bge-small-en-v1.5 embedding model
+numpy>=1.24.0           # High-speed vectorized cosine similarity scan
+pandas>=2.0.0           # Tabular metadata filtering and relational joins
 
 # Document Ingestion & Generation
-pdfplumber              # PDF text extraction
-python-docx             # DOCX text extraction + BOQ (.docx) generation
-openpyxl                # Excel read + BOM (.xlsx) generation
+pdfplumber>=0.10.0      # PDF text and table extraction
+python-docx>=0.8.11     # DOCX text extraction + BOQ (.docx) proposal generation
+openpyxl>=3.1.0         # Excel parsing + BOM (.xlsx) workbook generation
+
+# System Monitoring & Health Check
+psutil>=5.9.0           # Real-time physical RAM and CPU monitoring
 
 # Build & Packaging
-pyinstaller             # Portable Windows .exe distribution generator
+pyinstaller>=6.0.0      # Standalone Windows portable distribution generator
 ```
 
 ### 9.5 Explicitly Rejected Technologies
@@ -1301,7 +1358,7 @@ pyinstaller             # Portable Windows .exe distribution generator
 To ensure the most hassle-free experience for iValue presales engineers, the application is packaged as a **portable single-folder distribution** using PyInstaller:
 
 1. **Build Specification:**
-   - Command: `pyinstaller --noconfirm --onedir --windowed --name "iValue_PRISM" --add-data "data;data" --icon "assets/prism_icon.ico" main.py`
+   - Command: `pyinstaller --noconfirm --onedir --windowed --name "iValue_PRISM" --add-data "data;data" --icon "assets/branding/ivalue_prism.ico" main.py`
    - Output directory: `dist/iValue_PRISM/` containing `iValue_PRISM.exe` and bundled dependencies.
 2. **Zero-Friction Portable Deployment:**
    - The engineer receives the zipped `iValue_PRISM/` directory.
@@ -1337,6 +1394,12 @@ To guarantee that the desktop interface never freezes or displays Windows "Not R
 2. **Worker Daemon Thread:** Executes file I/O, vector embedding, retrieval, and Ollama HTTP API streaming. Never touches Tkinter widgets directly (avoiding Tkinter thread-safety violations).
 3. **Thread-Safe Queue (`queue.Queue`):** The worker thread posts granular progress updates, streamed tokens, and completed recommendation payloads into the queue.
 4. **Queue Polling Loop:** The main thread monitors the queue using `app.after(50, self._process_queue)` to safely update GUI labels, progress indicators, and text cards.
+5. **Active Worker Preemption (H-6):** If the engineer clicks "Analyze" or "New Query" while a background worker thread is actively executing inference, the system triggers the cancellation flow: sets `cancel_event.set()`, displays a brief status toast ("Cancelling active analysis..."), waits up to 2.0 seconds with thread join for the running worker to abort cleanly and release memory, resets pipeline state, and then proceeds with the new task.
+6. **Graceful Shutdown Protocol (`WM_DELETE_WINDOW`) (I-1):** When the engineer closes the application window:
+   - PRISM checks if a worker thread is running. If active, signals `cancel_event.set()`.
+   - The UI thread waits up to 3.0 seconds (`worker_thread.join(timeout=3.0)`) for the background thread to exit cleanly.
+   - The application writes current window geometry coordinates `(x, y, width, height, is_maximized)` to `%APPDATA%\iValue_PRISM\config.json`.
+   - Invokes `app.destroy()` and exits the process cleanly with zero orphaned subprocesses or background threads.
 
 ---
 
@@ -1382,7 +1445,7 @@ To enable any senior software engineer or project manager to mentally execute th
 | **0** | `BOOT_SPLASH` | User clicks `iValue_PRISM.exe` | Acquires single-instance mutex (`Global\iValue_PRISM`). Mounts splash window (480×340). Resolves Ollama daemon; checks embeddings `.npy` timestamp; loads `bge-small-en-v1.5`. | $\rightarrow$ `IDLE_READY`<br>$\times$ Fatal alert if weights missing | ~18–22s (first launch)<br>~2s (warm) |
 | **1** | `IDLE_READY` | Splash completes or "New Query" clicked | Destroys splash; displays main window (1280×820); renders zero-state guidance or restores session; enables input textbox; starts 30s background health ping. | $\rightarrow$ `EXTRACTION_MODAL` (file)<br>$\rightarrow$ `DISPATCH_WORKER` (text) | Immediate (<50ms) |
 | **2** | `EXTRACTION_MODAL` | User drops/selects `.pdf`, `.docx`, `.txt` | DocumentParser extracts plain text; opens 760×540 preview modal; user reviews/edits text; clicks "Confirm & Analyze". | $\rightarrow$ `DISPATCH_WORKER`<br>$\times$ `IDLE_READY` on discard | User-dependent (~5–15s) |
-| **3** | `DISPATCH_WORKER` | User clicks "⚡ Analyze Requirement" | Disables Analyze button; activates Cancel button; instantiates `queue.Queue`; starts `WorkerThread(daemon=True)`. | $\rightarrow$ `HYBRID_RETRIEVAL`<br>$\times$ Short/Empty warning alert | <20ms |
+| **3** | `DISPATCH_WORKER` | User clicks "Analyze Requirement" | Disables Analyze button; activates Cancel button; instantiates `queue.Queue`; starts `WorkerThread(daemon=True)`. | $\rightarrow$ `HYBRID_RETRIEVAL`<br>$\times$ Short/Empty warning alert | <20ms |
 | **4** | `HYBRID_RETRIEVAL` | Worker thread starts | Checks prompt injection keywords; extracts Sub_Domain / OEM tokens; encodes query via `bge-small` with query prefix; executes `np.dot` cosine scan over 139 product vectors; selects Top-5 candidates. | $\rightarrow$ `CONTEXT_ASSEMBLY`<br>$\times$ Zero-results fallback | ~1.5–2.5s |
 | **5** | `CONTEXT_ASSEMBLY` | Top-5 indices retrieved | Joins `Product_ID` with `data/metadata.pkl`, `composite_products.json`, and `domain_taxonomy.json`; enforces 1,200-token retrieved context budget; formats ChatML prompt envelope. | $\rightarrow$ `STREAMING_INFERENCE` | ~100–250ms |
 | **6** | `STREAMING_INFERENCE` | Assembled prompt ready | Calls Ollama HTTP SSE endpoint (`/api/chat` with `stream: true`); reads token chunks; emits `TOKEN` events to queue; main thread updates live stream box; checks cancellation event. | $\rightarrow$ `POST_VALIDATION`<br>$\times$ Timeout (180s) or Cancel | ~25–45s |
@@ -1434,14 +1497,15 @@ class HybridRetriever:
         """Applies query instruction prefix and embeds query using sentence-transformers."""
         ...
     def search(self, query_text: str, top_k: int = 5, min_similarity: float = 0.20) -> List[Dict[str, Any]]:
-        """Executes exact cosine scan, merges keyword/sub-domain metadata filters, and returns top candidates."""
+        """Executes exact cosine scan using SIMILARITY_FLOOR=0.20 (hard cutoff) and SIMILARITY_WARNING=0.35, merges metadata filters, and returns top candidates."""
         ...
 ```
 
 ##### 2. `OllamaStreamingClient` (`src/core/ollama_client.py`)
 ```python
 class OllamaStreamingClient:
-    def __init__(self, host: str = "http://127.0.0.1:11434", model: str = "phi4-mini:3.8b-instruct-q4_K_M"):
+    def __init__(self, host: str = "http://127.0.0.1:11434", model: str = "phi4-mini"):
+        """Initializes client with canonical model tag 'phi4-mini' (resolving to phi4-mini:latest / phi4-mini:3.8b-instruct-q4_K_M)."""
         ...
     def stream_chat(self, messages: List[Dict[str, str]], cancel_event: threading.Event) -> Generator[str, None, None]:
         """Yields streaming token strings via Ollama /api/chat. Aborts cleanly if cancel_event is set."""
@@ -1494,13 +1558,13 @@ If the daemon is offline but a valid binary path is found:
 - Polls `http://127.0.0.1:11434/api/tags` every 1.5 seconds for up to 15 seconds until the service reports ready.
 
 #### 3. Model Presence Preflight:
-Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.8b-instruct-q4_K_M` (or alias `phi4-mini`) is pulled:
-- **If Model Found:** Preflight check succeeds; splash screen checklist turns 🟢.
+Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini` (or alias `phi4-mini:3.8b-instruct-q4_K_M` / `phi4-mini:latest`) is pulled:
+- **If Model Found:** Preflight check succeeds; splash screen checklist item turns green `[✓]`.
 - **If Model Missing:**
   - Displays a clear preflight setup dialog: *"The Phi-4-mini neural reasoning model (~2.4 GB) is not currently installed in your local Ollama library."*
   - Provides two one-click options:
-    1. **"⬇️ Download Model Automatically"** — Dispatches an asynchronous streaming pull request to `POST /api/pull` with `{"name": "phi4-mini"}`. Displays a live download progress bar with megabytes downloaded in the splash window.
-    2. **"⚙️ Manual Instructions"** — Displays a copyable command: `ollama pull phi4-mini` or instructs the user to import `Modelfile.presales`.
+    1. **"Download Model Automatically"** — Dispatches an asynchronous streaming pull request to `POST /api/pull` with `{"name": "phi4-mini"}`. Displays a live download progress bar with megabytes downloaded in the splash window (download icon `assets/icons/download.png`).
+    2. **"Manual Instructions"** — Displays a copyable command: `ollama pull phi4-mini` or instructs the user to import `Modelfile.presales`.
 
 ---
 
@@ -1521,14 +1585,14 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
   - **Log Entry:** `INFO: Short input warning shown (length: X chars). User chose to [proceed/rephrase].`
 
 - **Extremely long input**
-  - **Detection:** Tokenizer (or approximate word count, ~1 token per 0.75 words) evaluates input text to exceed 1,500 tokens.
+  - **Detection:** Tokenizer (or approximate word count heuristic `estimated_tokens = int(len(text.split()) * 1.3)`) evaluates input text to exceed 1,500 tokens.
   - **System Behavior:** Truncates the input to 1,500 tokens before passing it to the embedding/generation pipeline, preserving the earliest portion.
   - **User-Facing Message:** "Warning: Your input was too long and has been truncated. The analysis will proceed on the first portion of the text."
   - **Log Entry:** `WARN: Input exceeded token limit (X tokens). Truncated to 1500 tokens.`
 
 - **Non-English input**
-  - **Detection:** Language detection heuristic (e.g., character-range check for non-Latin scripts, or `langdetect` library if RAM allows).
-  - **System Behavior:** Halts processing since the model and dataset are English-only.
+  - **Detection:** Zero-dependency Unicode script range check tests if >20% of non-whitespace characters fall outside Latin/Extended Latin ranges (`ord(char) > 0x024F`). This catches non-Latin scripts (Arabic, Cyrillic, Chinese, Devanagari) instantly with zero external dependencies (avoiding heavy packages like `langdetect`).
+  - **System Behavior:** Halts processing since the model and catalog dataset are English-only.
   - **User-Facing Message:** "Currently, only English text is supported. Please translate your requirements and try again."
   - **Log Entry:** `WARN: Non-English input detected. Request aborted.`
 
@@ -1585,15 +1649,15 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
 ### 10.3 Retrieval Errors
 
 - **Zero results**
-  - **Detection:** Semantic search returns 0 documents above the minimum similarity threshold (0.20).
+  - **Detection:** Semantic search returns 0 documents above the hard cutoff threshold `SIMILARITY_FLOOR` (0.20).
   - **System Behavior:** Skips LLM generation entirely.
   - **User-Facing Message:** "No matching products were found in iValue's current catalog for your requirements. Try rephrasing or broadening your query."
-  - **Log Entry:** `INFO: Semantic search returned 0 results above threshold for query ID: [X].`
+  - **Log Entry:** `INFO: Semantic search returned 0 results above SIMILARITY_FLOOR (0.20) for query ID: [X].`
 
 - **Low-confidence results**
-  - **Detection:** The best-match cosine similarity is below the "useful" threshold (0.35) but above minimum (0.20).
+  - **Detection:** The best-match cosine similarity is below the advisory threshold `SIMILARITY_WARNING` (0.35) but at or above `SIMILARITY_FLOOR` (0.20).
   - **System Behavior:** Proceeds to LLM generation but attaches a LOW confidence tag to all outputs.
-  - **User-Facing Message:** "⚠️ Low confidence: Your requirement may not closely match any products in iValue's catalog. Results shown may not be fully relevant."
+  - **User-Facing Message:** "[Low Confidence]: Your requirement may not closely match any products in iValue's catalog. Results shown may not be fully relevant."
   - **Log Entry:** `INFO: Low confidence retrieval. Top score: [X]. Proceeding with LOW confidence tag.`
 
 - **Ambiguous domain mapping**
@@ -1611,7 +1675,7 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
 - **Stale embeddings**
   - **Detection:** On startup, dataset file's last-modified timestamp is newer than `last_embed_timestamp`.
   - **System Behavior:** Triggers automatic full re-embed before serving any queries. If re-embedding fails, serves from stale embeddings with a warning.
-  - **User-Facing Message:** On startup: "Updating product database... (this takes ~30–45 seconds)." If failed: "⚠️ Product database may not reflect the latest updates."
+  - **User-Facing Message:** On startup: "Updating product database... (this takes ~30–45 seconds)." If failed: "[Warning] Product database may not reflect the latest updates."
   - **Log Entry:** `INFO: Stale embeddings detected. Re-embedding [X] products...` or `ERROR: Re-embedding failed. Serving from stale cache.`
 
 ### 10.4 Generation Errors
@@ -1630,14 +1694,14 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
 
 - **LLM hallucination detected**
   - **Detection:** Post-generation check finds product names, feature claims, or specifications in the output that don't exist in the retrieved dataset rows.
-  - **System Behavior:** Flags hallucinated claims with ⚠️ markers in the output but does NOT remove them entirely (the engineer can see and judge).
-  - **User-Facing Message:** Hallucinated claims are marked: "⚠️ Unverified claim: This information was not found in the product database."
+  - **System Behavior:** Flags hallucinated claims with `[Unverified claim]` markers in the output but does NOT remove them entirely (the engineer can see and judge).
+  - **User-Facing Message:** Hallucinated claims are marked: "[Unverified claim]: This information was not found in the product database."
   - **Log Entry:** `WARN: Hallucination detected in query [X]. Unverified claims: [list]. Flagged in output.`
 
 - **LLM mentions pricing** (**CRITICAL**)
   - **Detection:** Post-generation regex scan for: currency symbols (`$`, `€`, `₹`, `£`, `¥`), keywords (`price`, `pricing`, `cost`, `costs`, `fee`, `fees`, `discount`, `per user/month`, `annual`, `subscription cost`, `TCO`, `budget`, `investment`), and patterns like digits followed by currency words.
   - **System Behavior:** Strips the **entire sentence** containing the pricing mention. Replaces with: "[Pricing information removed — contact iValue Sales.]" Increments a critical counter.
-  - **User-Facing Message:** The recommendation is shown with the pricing sentence replaced. A system note appears: "⚠️ Some content was filtered. This system does not provide pricing information."
+  - **User-Facing Message:** The recommendation is shown with the pricing sentence replaced. A system note appears: "[Pricing content was removed — contact iValue Sales. This system does not provide pricing information.]"
   - **Log Entry:** `CRITICAL: LLM generated pricing content in query [X]. Offending text: "[sentence]". Stripped and replaced.`
 
 - **LLM repetition loop**
@@ -1652,13 +1716,13 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
     1. System automatically attempts to launch the background service using `subprocess.Popen` targeting the standard Windows install path (`%LOCALAPPDATA%\Programs\Ollama\ollama.exe serve`).
     2. Retries connection up to 5 times (1.5-second intervals).
     3. If connection succeeds, resumes normal operation without interrupting the user.
-    4. If launch fails or binary is not found, displays a native desktop alert dialog and temporarily disables the "Analyze" button while keeping the GUI responsive.
+    4. If launch fails or binary is not found, displays a native desktop alert dialog and temporarily disables the "Analyze Requirement" button while keeping the GUI responsive.
   - **User-Facing Message:** "The AI engine (Ollama) is offline and could not be started automatically. Please verify Ollama is installed from ollama.com or start it manually from your Start Menu."
   - **Log Entry:** `CRITICAL: Ollama service unreachable at localhost:11434. Auto-launch attempt: [success/failure].`
 
 - **Ollama model missing (Phi-4-mini not in local tags)**
-  - **Detection:** Ollama daemon is reachable on `127.0.0.1:11434`, but querying `GET /api/tags` does not return `phi4-mini:3.8b-instruct-q4_K_M` (or alias `phi4-mini`).
-  - **System Behavior:** Displays an interactive preflight setup modal dialog (Section 9.11). Disables the "⚡ Analyze Requirement" button; offers a 1-click **"⬇️ Download Model Automatically"** button that dispatches a streaming pull request to `POST /api/pull` with live download progress bar, or presents the manual command: `ollama pull phi4-mini`.
+  - **Detection:** Ollama daemon is reachable on `127.0.0.1:11434`, but querying `GET /api/tags` does not return `phi4-mini` (or alias `phi4-mini:latest` / `phi4-mini:3.8b-instruct-q4_K_M`).
+  - **System Behavior:** Displays an interactive preflight setup modal dialog (Section 9.11). Disables the "Analyze Requirement" button; offers a 1-click **"Download Model Automatically"** button that dispatches a streaming pull request to `POST /api/pull` with live download progress bar, or presents the manual command: `ollama pull phi4-mini`.
   - **User-Facing Message:** "The required reasoning model (Phi-4-mini, ~2.4 GB) is not installed in Ollama. Click 'Download Model' to fetch it automatically, or run 'ollama pull phi4-mini' in your terminal."
   - **Log Entry:** `CRITICAL: Ollama online but phi4-mini missing from local tags. Prompting user for download.`
 
@@ -1705,7 +1769,7 @@ Once Ollama is online, PRISM queries `/api/tags` to verify whether `phi4-mini:3.
 - **Dataset file missing or corrupted**
   - **Detection:** `FileNotFoundError` or `openpyxl` parsing exception on startup.
   - **System Behavior:** If `data/embeddings.npy` and `data/metadata.pkl` exist, continue with cached data + warning banner. If neither exists, show fatal startup alert.
-  - **User-Facing Message:** If continuing: "⚠️ Excel dataset not found. Running from cached product database." If failing: "FATAL: No dataset or cached index available. Please place `iValue_Solution_Recommendation_Dataset.xlsx` in the `data/raw/` folder."
+  - **User-Facing Message:** If continuing: "[Warning] Excel dataset not found. Running from cached product database." If failing: "FATAL: No dataset or cached index available. Please place `iValue_Solution_Recommendation_Dataset.xlsx` in the `data/raw/` folder."
   - **Log Entry:** `ERROR: Dataset file missing/corrupted at [path]. Fallback: [cache/none].`
 
 - **Application startup failure**
@@ -1787,6 +1851,7 @@ Every single query-to-response cycle is logged. This is critical for system eval
   ],
   "domain_classification": "Enterprise & Cyber Security / PAM",
   "generated_text": "For your requirement...",
+  "fit_score": 92.0,
   "confidence_level": "HIGH",
   "hallucinations_detected": [],
   "pricing_mentions_stripped": false,
@@ -1808,10 +1873,10 @@ Every single query-to-response cycle is logged. This is critical for system eval
 }
 ```
 
-**Storage:** Append-only local `.jsonl` file at a configurable path (default: `./logs/query_log.jsonl`).
+**Storage:** Append-only local `.jsonl` file stored at primary Windows path `%APPDATA%\iValue_PRISM\logs\query_log.jsonl` (with automatic fallback to `./logs/query_log.jsonl` if portable mode is specified or `%APPDATA%` is unwritable).
 **Retention:** All logs retained indefinitely. Log rotation at 50 MB file size (archived, not deleted).
 
-### 11.2 Hallucination Detection
+### 11.2 Hallucination Detection & Confidence Scoring
 Post-generation validation runs automatically before the output is shown to the user.
 
 **Process:**
@@ -1819,12 +1884,17 @@ Post-generation validation runs automatically before the output is shown to the 
 2. For each product name, check if it exists in the `Products` sheet (fuzzy match with >90% similarity to handle minor formatting differences).
 3. Extract all feature claims (patterns like "supports X", "provides Y", "includes Z").
 4. For each feature claim, check if a matching feature exists in `Product_Features` for the cited product.
-5. Any unmatched claim is flagged with ⚠️ in the output and logged.
+5. Any unmatched claim is flagged with `[Unverified claim]` in the output and logged.
+6. **Canonical Confidence Scoring:** Calculate the normalized Fit Score via canonical formula:
+   $$\text{fit\_score} = \max\left(0, \min\left(100, \frac{\text{cosine\_sim} - 0.20}{0.80 - 0.20} \times 100\right)\right)$$
+   - **HIGH:** $\text{fit\_score} \ge 85\%$ (cosine similarity $\ge 0.71$) AND all cited rows have `Data_Status == 'Confirmed'`.
+   - **MEDIUM:** $\text{fit\_score} \ge 65\%$ (cosine similarity $\ge 0.59$) OR some cited rows have `Data_Status == 'Draft'`.
+   - **LOW:** $\text{fit\_score} < 65\%$ (cosine similarity $< 0.59$) OR any cited row has `Data_Status == 'TBD'`.
 
 **Logging:** Hallucination events are tagged in the query log as `hallucinations_detected: [list of unverified claims]`.
 
-### 11.3 User Feedback Capture
-After reviewing a recommendation, the engineer can:
+### 11.3 User Feedback Capture & Proposal Export Tracking
+After reviewing a recommendation, the engineer can execute actions that are logged for auditability and continuous model improvement:
 
 | Action | What is captured | Stored where |
 |---|---|---|
@@ -1832,6 +1902,19 @@ After reviewing a recommendation, the engineer can:
 | **Accept with edits** | `user_action: "accept_with_edits"`, `user_feedback: {original_text, edited_text, diff}` | Query log entry |
 | **Reject** | `user_action: "reject"`, `user_feedback: {reason: "optional text"}` | Query log entry |
 | **Re-analyze** | `user_action: "re_analyze"`, new query_id linked to original | New query log entry |
+| **Export BOM** | `user_action: "export_bom"`, `export_details: {products: [...], file_path: "..."}` | Query log entry |
+| **Export BOQ** | `user_action: "export_boq"`, `export_details: {products: [...], file_path: "..."}` | Query log entry |
+
+**Export Event Schema:**
+```json
+{
+  "type": "EXPORT_BOM",
+  "query_id": "req-8f7a9",
+  "timestamp": "2026-09-03T15:35:00Z",
+  "products": ["OEM-001-P01"],
+  "file_path": "C:\\Users\\User\\Documents\\iValue_BOM_PaloAlto_20260903.xlsx"
+}
+```
 
 Over time, this builds a dataset of "query → correct/corrected answer" pairs that can be used to:
 - Evaluate retrieval quality (are the right products being retrieved?)
@@ -1952,7 +2035,8 @@ Negative tests verify that the system rejects, sanitizes, or gracefully handles 
 | NEG-03 | Single-character input | `"A"` | Short-input warning shown. User may override. If proceeding, retrieval likely returns LOW confidence. | Section 10.1, FR-14 |
 | NEG-04 | Exactly 10-character boundary | `"PAM 200 us"` (10 chars) | No short-input warning — boundary is `<10`. Pipeline proceeds normally. | Boundary validation |
 | NEG-05 | Input exceeding 10,000 characters | 12,000 chars of Lorem Ipsum | Truncation warning displayed. Only first ~1,500 tokens sent to pipeline. | Section 10.1 |
-| NEG-06 | Non-English text (Arabic, Chinese, Emoji) | `"نحتاج حل أمني"` or `"🔒🔥💻"` | Non-English warning shown. Processing halted. | Section 10.1 |
+| NEG-06a | Non-English text (Arabic, Chinese, Cyrillic) | `"نحتاج حل أمني"` | Non-English warning shown via Unicode script test (`ord(c) > 0x024F`). Processing halted. | Section 10.1 |
+| NEG-06b | Emoji-only or symbol-only input | `"🔒🔥💻"` | Flagged as unrecognized/gibberish requirement (no English vocabulary). Zero-results handling. | Section 10.1 |
 | NEG-07 | SQL/code injection in text | `"; DROP TABLE products; --"` | Passed as literal text to embedding. No SQL execution (no SQL backend in Phase 1). Retrieval returns low/zero results. | Section 10.8 |
 | NEG-08 | Upload .exe file | `malware.exe` | "Unsupported file format" error. File never read. | Section 10.2 |
 | NEG-09 | Upload 0-byte .txt file | Empty `blank.txt` | "The uploaded file contains no extractable text." | Section 10.2 |
@@ -1970,8 +2054,8 @@ Integration tests verify that all system components work together end-to-end on 
 
 | ID | Scenario | Procedure | Pass Criteria |
 |---|---|---|---|
-| INT-01 | Cold start with Ollama offline | Kill Ollama process → Launch iValue PRISM | PRISM detects Ollama offline → auto-launches `ollama serve` → connection verified within 30s → status indicator turns 🟢. |
-| INT-02 | Cold start with Ollama already running | Ensure Ollama is running → Launch PRISM | Immediate 🟢 status. No duplicate Ollama process spawned. |
+| INT-01 | Cold start with Ollama offline | Kill Ollama process → Launch iValue PRISM | PRISM detects Ollama offline → auto-launches `ollama serve` → connection verified within 30s → status indicator turns to verified green `[✓]`. |
+| INT-02 | Cold start with Ollama already running | Ensure Ollama is running → Launch PRISM | Immediate `[✓] Online` status. No duplicate Ollama process spawned. |
 | INT-03 | Cold start with stale embeddings | Modify dataset timestamp → Launch PRISM | Re-embedding triggered automatically. Status shows "Updating product database..." Progress visible. New `.npy` written. |
 | INT-04 | Cold start with missing dataset AND missing cache | Remove both `.xlsx` and `.npy` files | Fatal startup alert: "No dataset or cached index available." App does not crash. |
 | INT-05 | Cold start with missing dataset BUT valid cache | Remove `.xlsx` but keep `.npy` | Warning banner: "Excel dataset not found. Running from cached product database." App functional. |
@@ -1980,7 +2064,7 @@ Integration tests verify that all system components work together end-to-end on 
 | INT-08 | BOM export after recommendation acceptance | Accept a recommendation → Set quantity → Export BOM | `.xlsx` file generated. Opens in Excel. All columns populated except pricing (blank). |
 | INT-09 | BOQ export after recommendation acceptance | Accept → Export BOQ | `.docx` file generated. Opens in Word. Watermark present. Pricing blank. |
 | INT-10 | Session history restore | Run 3 queries → Click first query in sidebar | Input and recommendation from first query restored correctly. |
-| INT-11 | Clipboard copy | Generate recommendation → Click "📋 Copy Recommendation" | Markdown text present in Windows clipboard. Checkmark confirmation shown. |
+| INT-11 | Clipboard copy | Generate recommendation → Click "Copy Recommendation" button | Markdown text present in Windows clipboard. Checkmark confirmation shown. |
 | INT-12 | Ollama crash mid-inference | Manually kill Ollama process during generation | Worker thread catches connection error. UI shows error message. Ollama re-launch attempted. |
 | INT-13 | Embedding model cache miss | Delete `%USERPROFILE%\.cache\huggingface\hub\bge-small*` | FATAL error dialog: model weights not cached. Clear message directing user to connect to internet once. |
 | INT-14 | Single-instance guard | Launch PRISM twice simultaneously | Second instance detects running mutex/lockfile → brings first window to foreground → exits. |
@@ -1996,7 +2080,7 @@ Stress tests validate system behavior under resource-constrained and prolonged-u
 | STR-03 | HDD I/O contention | Run PRISM query while Windows Update or antivirus scan is active | Query completes within degraded threshold (≤180s). No data corruption. |
 | STR-04 | Long-running session (2+ hours) | Leave PRISM open for 2 hours with periodic queries | No memory leak. Background health checks continue. Ollama status indicator remains accurate. |
 | STR-05 | Maximum context pressure | Craft a query that retrieves 5 products with maximum-length composite embeddings | Context assembly truncates per Section 7.5 priority. No Ollama error. Generation completes. |
-| STR-06 | Re-embedding under load | Modify dataset timestamp while a query is in progress | Re-embedding queues until current query completes, or uses stale cache for in-flight query. No crash. |
+| STR-06 | Re-embedding under load | Modify dataset timestamp while a query is in progress | Re-embedding is deferred until active query finishes; in-flight query executes against cached in-memory embeddings. New matrix pointer swapped atomically. No crash. |
 | STR-07 | Log file growth | Generate 200+ query logs | Log rotation triggers at 50 MB. Archived log preserved. New log continues. |
 | STR-08 | Disk space exhaustion | Fill disk to <100 MB free → Attempt BOM export | "Cannot save — disk is full" error. No crash. No partial corrupt file left behind. |
 | STR-09 | Slow Ollama response | Set `num_thread 1` to artificially slow inference | Query takes longer but completes or hits 180s timeout gracefully. Progress bar continues animating. |
@@ -2034,14 +2118,14 @@ Security tests validate defenses against prompt injection, data exfiltration, an
 
 ## 13. Project Roadmap & Next Steps
 
-### ✅ Completed (Phase 0 Validation Sprint — September 2026)
+### Completed (Phase 0 Validation Sprint — September 2026)
 1. **Executed Phase 0.1 Data Cleanup:** Relabeled 139 rows to `Confirmed`, normalized 33 sub-domains, created taxonomy mapping, and validated referential integrity.
-2. **Pre-computed Vector Embeddings:** Generated 384-dimensional embeddings for all 139 products into `data/cache/product_embeddings.npy` and `data/cache/product_metadata.json`.
+2. **Pre-computed Vector Embeddings:** Generated 384-dimensional embeddings for all 139 products into canonical `data/embeddings.npy` and `data/metadata.pkl`.
 3. **Executed Phase 0.2 Hardware Validation Spike:** Verified Ollama Phi-4-mini and bge-small load within limits; measured end-to-end latency ~38s on target i5 laptop; total system RAM peaked at 5.2 GB.
 4. **Executed Phase 0.3 LLM Quality Validation:** Evaluated 5 real presales requirements; all 5 produced accurate, grounded drafts.
 5. **Finalized Architecture Shift to Desktop:** Replaced Streamlit with CustomTkinter to save ~1.2 GB RAM and eliminate browser overhead.
 
-### 🔴 Immediate Phase 1 Desktop Implementation Steps (Current Focus)
+### In Progress (Phase 1 Desktop Implementation Steps)
 1. **Desktop GUI Shell:** Construct the CustomTkinter desktop interface (`iValue_PRISM`) featuring the left navigation sidebar, query history, requirement input textbox, and recommendation card canvas.
 2. **Background Threading Engine:** Implement the dual-tier threading model with `threading.Thread` and thread-safe `queue.Queue` to keep the UI fluid at 60 FPS while streaming tokens.
 3. **Ollama Auto-Start Manager:** Build the auto-detection utility that pings `http://127.0.0.1:11434` and launches `ollama serve` if offline.
@@ -2050,7 +2134,7 @@ Security tests validate defenses against prompt injection, data exfiltration, an
 6. **BOM & BOQ Exporters:** Wire `openpyxl` (.xlsx) and `python-docx` (.docx) generators with blank pricing columns.
 7. **PyInstaller Packaging:** Compile and bundle the application into a standalone portable folder (`dist/iValue_PRISM/iValue_PRISM.exe`).
 
-### 🟢 Future Phases
+### Planned (Future Phases)
 - **Phase 2:** Advanced licensing optimization logic and multi-tier quotation workflows.
 - **Phase 3:** Automated tender and lead monitoring engine (scoped in a future separate SRS).
 
