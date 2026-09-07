@@ -1,0 +1,29 @@
+# ==============================================================================
+# iValue PRISM — Presales Recommendation & Intelligence System
+# Production & Development Python Dependencies (SRS v3.3 - Section 9.4)
+# ==============================================================================
+
+# Desktop GUI
+customtkinter>=5.2.0    # Modern UI library wrapping Tkinter
+darkdetect>=0.8.0       # Fallback OS dark/light mode detection for legacy Windows builds
+pillow>=10.0.0          # Image loading and DPI scaling for brand graphics
+
+# Core AI & Search Pipeline
+ollama>=0.3.0           # Local Ollama daemon Python client
+sentence-transformers>=2.2.2 # bge-small-en-v1.5 embedding model
+numpy>=1.24.0           # High-speed vectorized cosine similarity scan
+pandas>=2.0.0           # Tabular metadata filtering and relational joins
+
+# Document Ingestion & Generation
+pdfplumber>=0.10.0      # PDF text and table extraction
+python-docx>=0.8.11     # DOCX text extraction + BOQ (.docx) proposal generation
+openpyxl>=3.1.0         # Excel parsing + BOM (.xlsx) workbook generation
+
+# System Monitoring & Health Check
+psutil>=5.9.0           # Real-time physical RAM and CPU monitoring
+
+# Build & Packaging
+pyinstaller>=6.0.0      # Standalone Windows portable distribution generator
+
+# Testing & Linting
+pytest>=7.4.0           # Automated test runner
