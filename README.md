@@ -83,9 +83,6 @@ PRISM/
 │   ├── iValue_Presales_Automation_SRS.md   # Complete Software Requirements Spec (v3.3)
 │   ├── iValue_Presales_Automation_SRS.pdf  # Compiled PDF specification
 │   └── benchmarks/                         # Phase 0 hardware & quality test logs
-├── scripts/
-│   ├── build_composite_embeddings.py # Re-computes embeddings on dataset update
-│   └── validate_dataset_integrity.py # Validates schema & referential integrity
 ├── src/
 │   ├── core/                         # Retrieval, Ollama client, exporters, validators
 │   ├── ui/                           # CustomTkinter application, cards, modals, themes
@@ -93,7 +90,10 @@ PRISM/
 ├── tests/                            # Automated test suite (unit, integration, stress)
 ├── themes/
 │   └── ivalue_prism.json             # CustomTkinter iValue brand theme
-└── Modelfile.presales                # Ollama model definition with optimal runtime params
+├── Modelfile.presales                # Ollama model definition with optimal runtime params
+├── requirements.txt                  # Pinned production & development dependencies
+├── setup_prism.bat                   # One-click Windows environment setup launcher
+└── setup_prism.ps1                   # Automated PowerShell environment setup script
 ```
 
 ---
@@ -108,36 +108,79 @@ PRISM/
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started & Environment Setup
 
-### 1. Prerequisites
-1. Ensure Python 3.10+ is installed:
-   ```powershell
-   python --version
-   ```
-2. Install and launch [Ollama](https://ollama.com/download/windows):
-   ```powershell
-   ollama --version
-   ollama pull phi4-mini
-   ```
+You can set up the complete development environment automatically or manually.
 
-### 2. Setup Environment
+### Option 1: Automated One-Click Setup (Recommended)
+
+The automated script handles **everything**: clones/updates the repo, configures Python `.venv`, installs all dependencies, installs and starts the local Ollama daemon, pulls the reasoning and embedding models (`phi4-mini` + `bge-small-en-v1.5`), verifies pre-computed embeddings, generates `.env`, and executes an end-to-end self-test.
+
+#### Method A: Direct PowerShell One-Liner (No manual cloning needed)
+Open Windows PowerShell and run:
 ```powershell
-# Clone the repository
-git clone https://github.com/abrar-labib-29/PRISM.git
-cd PRISM
-
-# Create and activate virtual environment
-python -m venv .venv
-.venv\Scripts\activate
-
-# Install dependencies
-pip install customtkinter darkdetect pillow ollama sentence-transformers numpy pandas pdfplumber python-docx openpyxl pyinstaller
+irm https://raw.githubusercontent.com/Abrar-Labib-29/PRISM/main/setup_prism.ps1 | iex
 ```
 
-### 3. Launch Application
+#### Method B: Clone & Double-Click
+1. Clone the repository:
+   ```powershell
+   git clone https://github.com/Abrar-Labib-29/PRISM.git
+   cd PRISM
+   ```
+2. Double-click `setup_prism.bat` or run in PowerShell:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\setup_prism.ps1
+   ```
+
+---
+
+### Option 2: Manual Setup
+
+If you prefer to configure the environment step-by-step:
+
+#### 1. Clone & Create Virtual Environment
 ```powershell
+git clone https://github.com/Abrar-Labib-29/PRISM.git
+cd PRISM
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+#### 2. Install Dependencies
+```powershell
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+#### 3. Setup Ollama & AI Models
+1. Install [Ollama for Windows](https://ollama.com/download/windows) and ensure the daemon is running (`http://127.0.0.1:11434`).
+2. Pull the reasoning model:
+   ```powershell
+   ollama pull phi4-mini
+   ```
+3. Build the presales-optimized model (clamped 2048 ctx & 4 physical threads):
+   ```powershell
+   ollama create ivalue-presales -f Modelfile.presales
+   ```
+4. Pre-cache the embedding model weights:
+   ```powershell
+   python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"
+   ```
+
+---
+
+### 💻 Running the Application & Tests
+
+Once the environment is set up and `.venv` is activated:
+
+```powershell
+# Run the desktop application
 python main.py
+
+# Run test suite
+pytest tests/
 ```
 
 ---
