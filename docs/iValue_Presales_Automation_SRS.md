@@ -18,7 +18,7 @@
 | 3.1 | 2026-09-06 | AI (Senior QA Review) | Added comprehensive Test & QA strategy: Section 12.5 (Negative Testing — 16 test cases), Section 12.6 (Integration Testing — 14 test cases), Section 12.7 (Stress & Reliability Testing — 9 test cases), Section 12.8 (Regression Testing — 7 categories), Section 12.9 (Security Testing — 8 test cases). Added Section 6.9 (Accessibility & Usability). Added worker thread global exception handler to Section 10.6. |
 | 3.2 | 2026-09-06 | AI (Senior UI/UX Review) | **Comprehensive UI/UX & Frontend Design Overhaul:** Completely rewrote Section 8.1 specifying a production-grade visual design system for CustomTkinter. Integrated official iValue brand gradient palette (Deep Purple `#2A0845` → Midnight Navy `#0B1120` → Radiant Sky Blue `#0EA5E9` → Pure White `#FFFFFF`), Segoe UI 8-tier typography scale, 4px baseline layout grid, component specifications (elevated top-pick recommendation cards, token character gauge, live streaming caret), 1280×820 windowing & snap layouts, 4-stage cold-start splash preloader, empty/zero-state guidance cards, toast notification engine, micro-interactions (press physics, pulse, morphing copy feedback), and CustomTkinter theme JSON (`themes/ivalue_prism.json`). Generated official crystalline refractive PRISM logo brand asset. Expanded Section 6.9 (Accessibility) with 36px click targets and visible focus rings. |
 | 3.3 | 2026-09-06 | AI (Senior Tech Lead & PM Review) | **Full Execution Blueprint & Architecture Reconciliation:** Reconciled data path consistency across all sections (`data/raw/` master Excel, `data/embeddings.npy`, `data/metadata.pkl`, `data/composite_products.json`). Added comprehensive end-to-end Execution State Machine (Section 9.9), concrete Python module and class blueprints for `src/` (Section 9.10), Ollama binary discovery hierarchy and missing-model auto-pull preflight (Section 9.11). Detailed Extracted Text Preview Modal (Section 8.1.12), Dynamic Theme Mode Switcher with persistence (Section 8.1.13), Decision Toolbar action handlers (Section 8.1.14), and Post-Export Shell Integration (Section 8.1.15). Added Edge Cases for missing models and disconnected secondary displays (Section 10.6). |
-| 3.4 | 2026-09-08 | AI (Senior Engineering Audit) | **Boot Latency & DataGrid Stability Overhaul:** Two-stage PyInstaller splash screen integration and boot latency mitigation (Phase A C-bootloader static splash via `--splash` + Phase B CTk live preloader). Replaced hand-rolled nested-frame layout with `tksheet` for the BOM Export grid to guarantee strict column alignment, native row striping, embedded dropdowns/spinners, and dark-theme rendering. Added Section 8.1.7a, updated Section 6.4 performance metrics (Time to first visible pixel), Section 9.5 rejected technologies, Section 9.7 build flags (`--splash`, `--exclude-module`), Section 12.7 HDD boot latency stress test (STR-10), and Section 12.8 BOM grid regression guard. |
+| 3.4 | 2026-09-08 | AI (Senior Engineering Audit) | **Boot Latency & DataGrid Stability Overhaul:** Two-stage PyInstaller splash screen integration and boot latency mitigation (Phase A C-bootloader static splash via `--splash` + Phase B CTk live preloader). Replaced hand-rolled nested-frame layout with `tksheet` for the BOM Export grid to guarantee strict column alignment, native row striping, embedded dropdowns/spinners, and dark-theme rendering. Added Section 8.1.7a, updated Section 6.4 performance metrics (Time to first visible pixel), Section 9.5 rejected technologies, Section 9.7 build flags (`--splash`, `--exclude-module`), Section 12.7 HDD boot latency stress test (STR-10), and Section 12.8 BOM grid regression guard. Applied production readiness audit corrections: reconciled `APP_VERSION` constant (3.4), corrected asset file tree entries (`boot_splash.png`, duplicate cleanup, `logs/` note), clarified host RAM ceiling boundaries, and documented automated onboarding scripts in Section 2.5. |
 
 ---
 
@@ -146,6 +146,7 @@ iValue PRISM is a standalone, native Windows 10/11 desktop application. It does 
 - **Cached index:** Pre-computed vector embeddings (`data/embeddings.npy`) and metadata (`data/metadata.pkl`) are available, eliminating the need to re-embed products on each startup.
 - **Host OS:** Windows 10 (version 1909+) or Windows 11 (64-bit).
 - **Taskbar integration:** PRISM runs as a standard Windows desktop application with taskbar icon, standard window controls, and persistent window dimensions.
+- **Automated environment setup:** A PowerShell-based automated environment setup script (`setup_prism.ps1`, launched via `setup_prism.bat`) is provided for contributor onboarding, installing Ollama, pulling models, and validating the development environment.
 - **Dataset availability:** The dataset Excel file exists at a configured path (`data/raw/iValue_Solution_Recommendation_Dataset.xlsx`).
 
 ### 2.6 System Configuration Constants
@@ -154,7 +155,7 @@ All core thresholds, model strings, formulas, and environment paths are governed
 
 | Constant | Value | Description |
 |---|---|---|
-| `APP_VERSION` | `"3.3"` | Current software specification and application release version |
+| `APP_VERSION` | `"3.4"` | Current software specification and application release version |
 | `OLLAMA_HOST` | `"http://127.0.0.1:11434"` | Default endpoint for the local Ollama desktop daemon |
 | `OLLAMA_MODEL_TAG` | `"phi4-mini"` | Canonical Ollama tag. Alias resolution logic: `phi4-mini` $\rightarrow$ `phi4-mini:latest` $\rightarrow$ `phi4-mini:3.8b-instruct-q4_K_M` |
 | `EMBEDDING_MODEL_NAME` | `"bge-small-en-v1.5"` | Local Sentence-Transformers embedding model (384-dim dense vectors) |
@@ -526,6 +527,9 @@ When the dataset outgrows Excel (>500 products or >3 concurrent editors), migrat
 | Application cold start (all components) | ≤ 120 seconds | 120–180 seconds | > 180 seconds |
 | Dataset re-embedding (full) | ≤ 60 seconds | 60–120 seconds | > 120 seconds |
 | RAM usage (total system) | ≤ 7.5 GB | 7.5–8.0 GB | > 8.0 GB (OOM risk) |
+
+> [!NOTE]
+> The ≤ 6.0 GB ceiling specified in Section 2.4 represents the design budget target during active inference for the application and Ollama process. The 7.5 GB degraded threshold here represents the total host system RAM monitoring boundary including the Windows OS baseline (~2.2–2.5 GB) and background tasks.
 
 ### 6.5 Security & Confidentiality
 - Dataset and outputs stay internal to iValue; no pricing or internal-only data is ever to reach an external-facing surface.
@@ -980,7 +984,8 @@ PRISM/
 │   ├── branding/
 │   │   ├── ivalue_prism_logo.png     # 512×512 master brand asset
 │   │   ├── ivalue_prism_logo.jpg     # 1024×1024 crystalline refraction rendering
-│   │   └── ivalue_prism.ico          # Multi-resolution Windows app icon
+│   │   ├── ivalue_prism.ico          # Multi-resolution Windows app icon
+│   │   └── boot_splash.png           # 420×280 static bootloader splash (PyInstaller --splash)
 │   └── icons/                        # Clean SVG / PNG UI action icons (24×24)
 ├── data/
 │   ├── raw/
@@ -1004,10 +1009,12 @@ PRISM/
 │   ├── ui/                           # CustomTkinter windows, components & dialogs
 │   └── utils/                        # Logging, config persistence, threading helpers
 ├── tests/                            # Automated test suite (unit, negative, integration)
-├── themes/
-│   └── ivalue_prism.json             # CustomTkinter brand theme configuration
-└── Modelfile.presales                # Ollama Phi-4-mini execution parameters
+└── themes/
+    └── ivalue_prism.json             # CustomTkinter brand theme configuration
 ```
+
+> [!NOTE]
+> The `logs/` directory is auto-created at runtime upon first query execution (`logs/prism_app.log`, `logs/prism_error.log`). Export file paths (e.g., BOM/BOQ documents) are user-selected via the native Windows file dialog.
 
 ---
 
