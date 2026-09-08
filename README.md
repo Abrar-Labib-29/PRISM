@@ -80,7 +80,7 @@ PRISM/
 │   ├── embeddings.npy                # 139 × 384 pre-computed vector index
 │   └── metadata.pkl                  # Fast-lookup metadata table
 ├── docs/
-│   ├── iValue_Presales_Automation_SRS.md   # Complete Software Requirements Spec (v3.3)
+│   ├── iValue_Presales_Automation_SRS.md   # Complete Software Requirements Spec (v3.4)
 │   ├── iValue_Presales_Automation_SRS.pdf  # Compiled PDF specification
 │   └── benchmarks/                         # Phase 0 hardware & quality test logs
 ├── src/

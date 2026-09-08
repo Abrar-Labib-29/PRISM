@@ -1,10 +1,11 @@
 # ==============================================================================
 # iValue PRISM — Presales Recommendation & Intelligence System
-# Production & Development Python Dependencies (SRS v3.3 - Section 9.4)
+# Production & Development Python Dependencies (SRS v3.4 - Section 9.4)
 # ==============================================================================
 
 # Desktop GUI
 customtkinter>=5.2.0    # Modern UI library wrapping Tkinter
+tksheet>=7.0.0          # Pure-Python hardware-accelerated spreadsheet widget for BOM grid
 darkdetect>=0.8.0       # Fallback OS dark/light mode detection for legacy Windows builds
 pillow>=10.0.0          # Image loading and DPI scaling for brand graphics
 
