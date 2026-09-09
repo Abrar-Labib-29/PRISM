@@ -19,23 +19,23 @@
 
 | Task ID | Phase | Title | SRS Refs | Depends On | Status | Files Touched |
 |---|---|---|---|---|---|---|
-| TASK-P1.1 | 1 — Data & Core | Constants & configuration module | §2.6, §8.1.6 | none | Not Started | `src/utils/config.py` |
-| TASK-P1.2 | 1 — Data & Core | JSONL query logger | §11.1, §11.3, §11.4 | TASK-P1.1 | Not Started | `src/utils/logger.py` |
-| TASK-P1.3 | 1 — Data & Core | System info utilities | §10.7, §11.4 | TASK-P1.1 | Not Started | `src/utils/system_info.py` |
-| TASK-P1.4 | 1 — Data & Core | Document parser (ingestion) | §3 Phase 1 step 3, §10.1, §10.2 | TASK-P1.1 | Not Started | `src/core/ingestion.py` |
-| TASK-P1.5 | 1 — Data & Core | Hybrid retriever | §3 Phase 1 step 4, §7.2, §7.3, §9.1, §9.10 | TASK-P1.1 | Not Started | `src/core/retrieval.py` |
-| TASK-P1.6 | 1 — Data & Core | Context assembler | §3 Phase 1 step 5, §7.4, §7.5, §9.10 | TASK-P1.5 | Not Started | `src/core/context_builder.py` |
-| TASK-P1.7 | 1 — Data & Core | Ollama service manager & streaming client | §9.10, §9.11, §10.4 | TASK-P1.1 | Not Started | `src/core/ollama_client.py` |
-| TASK-P1.8 | 1 — Data & Core | Response validator (pricing, hallucination, repetition) | §3 Phase 1 step 7, §10.4, §10.8, §11.2, §9.10 | TASK-P1.1 | Not Started | `src/core/validators.py` |
-| TASK-P1.9 | 1 — Data & Core | BOM exporter (.xlsx) | §3 Phase 2 step 3, §8.4, §10.5, §9.10 | TASK-P1.1 | Not Started | `src/core/exporters.py` |
-| TASK-P1.10 | 1 — Data & Core | BOQ exporter (.docx) — append to exporters | §3 Phase 2 step 4, §8.4, §10.5 | TASK-P1.9 | Not Started | `src/core/exporters.py` |
-| TASK-P1.11 | 1 — Data & Core | PrismService façade | §8.3 | TASK-P1.4, TASK-P1.5, TASK-P1.6, TASK-P1.7, TASK-P1.8, TASK-P1.9, TASK-P1.10 | Not Started | `src/core/service.py` |
-| TASK-P2.1 | 2 — Threading | Worker thread dispatcher & queue protocol | §9.8, §9.9, §10.7 | TASK-P1.11 | Not Started | `src/core/worker.py` |
-| TASK-P3.1 | 3 — UI Shell | Theme JSON & design tokens | §8.1.2, §8.1.3, §8.1.4, §8.1.11 | none | Not Started | `themes/ivalue_prism.json` |
-| TASK-P3.2 | 3 — UI Shell | Splash preloader (Phase B) | §8.1.7, §8.1.7a | TASK-P3.1, TASK-P1.1 | Not Started | `src/ui/splash.py` |
-| TASK-P3.3 | 3 — UI Shell | Main application window (PRISMApp) | §8.1.1, §8.1.6, §9.8, §9.9 state 0-1 | TASK-P3.1, TASK-P3.2, TASK-P2.1 | Not Started | `src/ui/app.py`, `main.py` |
-| TASK-P3.4 | 3 — UI Shell | Sidebar view | §8.1.5 item 1, §8.1.13 | TASK-P3.1, TASK-P1.1, TASK-P1.3 | Not Started | `src/ui/components/__init__.py`, `src/ui/components/sidebar.py` |
-| TASK-P3.5 | 3 — UI Shell | Requirement input panel | §8.1.5 item 2, §FR-1, §FR-1a, §FR-14 | TASK-P3.1 | Not Started | `src/ui/components/input_panel.py` |
+| TASK-P1.1 | 1 — Data & Core | Constants & configuration module | §2.6, §8.1.6 | none | Done | `src/utils/config.py` |
+| TASK-P1.2 | 1 — Data & Core | JSONL query logger | §11.1, §11.3, §11.4 | TASK-P1.1 | Done | `src/utils/logger.py` |
+| TASK-P1.3 | 1 — Data & Core | System info utilities | §10.7, §11.4 | TASK-P1.1 | Done | `src/utils/system_info.py` |
+| TASK-P1.4 | 1 — Data & Core | Document parser (ingestion) | §3 Phase 1 step 3, §10.1, §10.2 | TASK-P1.1 | Done | `src/core/ingestion.py` |
+| TASK-P1.5 | 1 — Data & Core | Hybrid retriever | §3 Phase 1 step 4, §7.2, §7.3, §9.1, §9.10 | TASK-P1.1 | Done | `src/core/retrieval.py` |
+| TASK-P1.6 | 1 — Data & Core | Context assembler | §3 Phase 1 step 5, §7.4, §7.5, §9.10 | TASK-P1.5 | Done | `src/core/context_builder.py` |
+| TASK-P1.7 | 1 — Data & Core | Ollama service manager & streaming client | §9.10, §9.11, §10.4 | TASK-P1.1 | Done | `src/core/ollama_client.py` |
+| TASK-P1.8 | 1 — Data & Core | Response validator (pricing, hallucination, repetition) | §3 Phase 1 step 7, §10.4, §10.8, §11.2, §9.10 | TASK-P1.1 | Done | `src/core/validators.py` |
+| TASK-P1.9 | 1 — Data & Core | BOM exporter (.xlsx) | §3 Phase 2 step 3, §8.4, §10.5, §9.10 | TASK-P1.1 | Done | `src/core/exporters.py` |
+| TASK-P1.10 | 1 — Data & Core | BOQ exporter (.docx) — append to exporters | §3 Phase 2 step 4, §8.4, §10.5 | TASK-P1.9 | Done | `src/core/exporters.py` |
+| TASK-P1.11 | 1 — Data & Core | PrismService façade | §8.3 | TASK-P1.4, TASK-P1.5, TASK-P1.6, TASK-P1.7, TASK-P1.8, TASK-P1.9, TASK-P1.10 | Done | `src/core/service.py` |
+| TASK-P2.1 | 2 — Threading | Worker thread dispatcher & queue protocol | §9.8, §9.9, §10.7 | TASK-P1.11 | Done | `src/core/worker.py` |
+| TASK-P3.1 | 3 — UI Shell | Theme JSON & design tokens | §8.1.2, §8.1.3, §8.1.4, §8.1.11 | none | Done | `themes/ivalue_prism.json` |
+| TASK-P3.2 | 3 — UI Shell | Splash preloader (Phase B) | §8.1.7, §8.1.7a | TASK-P3.1, TASK-P1.1 | Done | `src/ui/splash.py` |
+| TASK-P3.3 | 3 — UI Shell | Main application window (PRISMApp) | §8.1.1, §8.1.6, §9.8, §9.9 state 0-1 | TASK-P3.1, TASK-P3.2, TASK-P2.1 | Done | `src/ui/app.py`, `main.py` |
+| TASK-P3.4 | 3 — UI Shell | Sidebar view | §8.1.5 item 1, §8.1.13 | TASK-P3.1, TASK-P1.1, TASK-P1.3 | Done | `src/ui/components/__init__.py`, `src/ui/components/sidebar.py` |
+| TASK-P3.5 | 3 — UI Shell | Requirement input panel | §8.1.5 item 2, §FR-1, §FR-1a, §FR-14 | TASK-P3.1 | Done | `src/ui/components/input_panel.py` |
 | TASK-P4.1 | 4 — Results | Token stream terminal | §8.1.5 item 3 | TASK-P3.1 | Not Started | `src/ui/components/stream_box.py` |
 | TASK-P4.2 | 4 — Results | Recommendation result cards | §8.1.5 item 4, §8.1.14, §FR-9 | TASK-P3.1 | Not Started | `src/ui/components/result_cards.py` |
 | TASK-P4.3 | 4 — Results | Document extraction modal | §8.1.12, §FR-13 | TASK-P3.1 | Not Started | `src/ui/components/extraction_modal.py` |
@@ -1758,6 +1758,23 @@ except ImportError:
 ## Walkthrough Log
 
 *(One line per completed task, appended by the executing agent)*
+- **TASK-P1.1** (2026-09-09): Implemented system constants, pure calculation functions (compute_fit_score, compute_confidence_tier, estimate_tokens), ConfigManager with disk persistence, and SessionSnapshot dataclass in src/utils/config.py.
+- **TASK-P1.2** (2026-09-09): Implemented QueryLogger with append-only JSONL format, complete §11.1 schema validation, 50MB log rotation, user action tracking (§11.3), and stdlib logging to prism_app.log / prism_error.log in src/utils/logger.py.
+- **TASK-P1.3** (2026-09-09): Implemented host resource diagnostics (RAM/CPU via psutil), Windows single-instance named mutex verification with subprocess validation, and Win32 reduced motion accessibility detection in src/utils/system_info.py.
+- **TASK-P1.4** (2026-09-09): Implemented DocumentParser and ExtractionResult supporting .txt, .pdf, and .docx files with encoding fallbacks, encrypted/password PDF detection, scanned PDF detection, and strict validation in src/core/ingestion.py.
+- **TASK-P1.5** (2026-09-09): Implemented HybridRetriever with bge-small-en-v1.5 dense vectors and NumPy brute-force cosine search, deterministic keyword & taxonomy filters, thread-safe index reload, and verified 95.0% Recall@3 and 95.0% Recall@5 in src/core/retrieval.py.
+- **TASK-P1.6** (2026-09-09): Implemented ContextAssembler with verbatim §7.4 rules, progressive 5-stage truncation adhering to §7.5 priority order, and strict 1600-token prompt budgeting in src/core/context_builder.py.
+- **TASK-P1.7** (2026-09-09): Implemented OllamaServiceManager with Windows binary discovery hierarchy, detached background auto-launch, model presence verification, and OllamaStreamingClient with cancellation events and 180s timeout enforcement in src/core/ollama_client.py.
+- **TASK-P1.8** (2026-09-09): Implemented ResponseValidator in src/core/validators.py with zero-tolerance pricing regex filter (§10.4), hallucination detector for catalog products and features (§11.2), repetition loop truncator (§10.4), prompt injection pre-check (§10.8), and post-generation exfiltration blocking (§10.8).
+- **TASK-P1.9** (2026-09-09): Implemented BOMExporter and §8.3 export dataclasses (BomItem, BomExportRequest, BoqExportRequest, ExportResponse) in src/core/exporters.py with 14 canonical columns, prominent red watermark disclaimer, blank pricing columns, and §10.5 fallback to CSV on formatting failure.
+- **TASK-P1.10** (2026-09-09): Appended BOQExporter to src/core/exporters.py generating formal Word proposals (.docx) in landscape orientation via python-docx with iValue letterhead, "DRAFT — PRICING NOT INCLUDED" header watermark, strictly blank price cells, and sales footer note.
+- **TASK-P1.11** (2026-09-09): Implemented PrismService façade in src/core/service.py orchestrating the complete presales pipeline: non-English guard (§10.1), pre-injection scanning (§10.8), hybrid retrieval (§7.2), context assembly (§7.4), streaming inference (§9.9), safety validation (§10.4), export delegation, and §11.1 query logging.
+- **TASK-P2.1** (2026-09-09): Implemented WorkerThread in src/core/worker.py providing daemon-threaded asynchronous execution, queue protocol dictionary envelopes (§9.10 item 4: STATUS_STEP 1-3, STREAM_TOKEN, STREAM_COMPLETE, ANALYSIS_SUCCESS, ANALYSIS_ERROR with taxonomy categorization, and ANALYSIS_CANCELLED), double-dispatch preemption (H-6 / NEG-15), sub-50ms thread cancellation (§10.7), and zero Tkinter coupling.
+- **TASK-P3.1** (2026-09-09): Configured CustomTkinter theme JSON in themes/ivalue_prism.json matching the iValue brand palette in §8.1.2 exactly (all 14 dual-mode color tokens, semantic status tokens with 10% opacity tint tokens, 4px/8px spacing grid tokens §8.1.4, Segoe UI typography hierarchy §8.1.3, and layout boundaries §8.1.4), fully verified with CustomTkinter widget instantiation.
+- **TASK-P3.2** (2026-09-09): Implemented SplashPreloader in src/ui/splash.py supporting Phase A to Phase B C-bootloader splash handoff (pyi_splash.close() with ImportError guard), centered borderless 480×340px presentation with brand logo, neon progress bar, 4-stage sequential checklist update (§8.1.7), and 300ms cross-fade animation with reduced-motion accessibility check.
+- **TASK-P3.3** (2026-09-09): Implemented PRISMApp in src/ui/app.py and main.py using a single-root Tkinter architecture to eliminate multi-root deadlocks (root PRISMApp created withdrawn, SplashPreloader parented to root, cross-fade to deiconify), 1280×820 centered geometry with 1024×640 minsize, §10.6 disconnected monitor self-healing, 50ms queue polling with message dispatching, graceful shutdown with worker cancellation and geometry persistence, Windows AppUserModelID registration (§8.1.1), and single-instance named mutex guard (§10.7).
+- **TASK-P3.4** (2026-09-09): Implemented SidebarView in src/ui/components/sidebar.py with established src/ui/components/__init__.py package, enforcing fixed 280px width, 40×40 PRISM branding lockup + H2 + v3.4 badge pill (§8.1.5 item 1), live system health status panel (hardware vector dot for Ollama, model badge, catalog count, live RAM bar meter), interactive volatile FIFO session history reel (max 20 SessionSnapshot items with clickable previews and restoration callback), utility action toolbar (New Query, Clear Workspace, Re-index), and dynamic theme switcher ([Dark | Light | System] CTkSegmentedButton with live persistence §8.1.13).
+- **TASK-P3.5** (2026-09-09): Implemented RequirementInputPanel in src/ui/components/input_panel.py featuring section header with native Windows document picker button (filtering .pdf, .docx, .txt), 140px CTkTextbox with placeholder support and 2px brand-accent focus glow (§8.1.5 item 2), live token/char gauge with 3-tier color transitions (Green <8k, Amber 8-10k, Crimson >10k), 42px primary Analyze and secondary Cancel buttons with state toggling (§10.7), keyboard accelerators (Ctrl+Enter, Ctrl+O, Escape §6.9), and input validation (empty rejection NEG-01/02, brief input notice NEG-03, max char limit NEG-05).
 
 ---
 
