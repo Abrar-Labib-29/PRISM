@@ -1,6 +1,7 @@
 # iValue PRISM — Implementation Plan
 
-> **Document version:** 1.0 | **SRS baseline:** v3.4 (locked) | **Planning agent:** Opus | **Last updated:** 2026-09-08
+> **Document version:** 1.1 | **SRS baseline:** v3.4 (locked) | **Planning agent:** Opus | **Last updated:** 2026-09-09
+> **All architectural decisions are LOCKED.** See "Locked Architectural Decisions" at the bottom.
 
 ---
 
@@ -33,7 +34,7 @@
 | TASK-P3.1 | 3 — UI Shell | Theme JSON & design tokens | §8.1.2, §8.1.3, §8.1.4, §8.1.11 | none | Not Started | `themes/ivalue_prism.json` |
 | TASK-P3.2 | 3 — UI Shell | Splash preloader (Phase B) | §8.1.7, §8.1.7a | TASK-P3.1, TASK-P1.1 | Not Started | `src/ui/splash.py` |
 | TASK-P3.3 | 3 — UI Shell | Main application window (PRISMApp) | §8.1.1, §8.1.6, §9.8, §9.9 state 0-1 | TASK-P3.1, TASK-P3.2, TASK-P2.1 | Not Started | `src/ui/app.py`, `main.py` |
-| TASK-P3.4 | 3 — UI Shell | Sidebar view | §8.1.5 item 1, §8.1.13 | TASK-P3.1, TASK-P1.1, TASK-P1.3 | Not Started | `src/ui/components/sidebar.py` |
+| TASK-P3.4 | 3 — UI Shell | Sidebar view | §8.1.5 item 1, §8.1.13 | TASK-P3.1, TASK-P1.1, TASK-P1.3 | Not Started | `src/ui/components/__init__.py`, `src/ui/components/sidebar.py` |
 | TASK-P3.5 | 3 — UI Shell | Requirement input panel | §8.1.5 item 2, §FR-1, §FR-1a, §FR-14 | TASK-P3.1 | Not Started | `src/ui/components/input_panel.py` |
 | TASK-P4.1 | 4 — Results | Token stream terminal | §8.1.5 item 3 | TASK-P3.1 | Not Started | `src/ui/components/stream_box.py` |
 | TASK-P4.2 | 4 — Results | Recommendation result cards | §8.1.5 item 4, §8.1.14, §FR-9 | TASK-P3.1 | Not Started | `src/ui/components/result_cards.py` |
@@ -61,6 +62,8 @@
 
 **Files you may create/modify (and ONLY these):**
 - `src/utils/config.py`
+
+> **LOCKED DECISION:** This module also defines the `SessionSnapshot` dataclass (used by both UI sidebar and core service). Define it here as a shared data structure.
 
 **Implementation spec:**
 
@@ -122,6 +125,23 @@ def estimate_tokens(text: str) -> int:
 - Default config on first run (§8.1.6): `{"appearance_mode": "dark", "window_geometry": [1280, 820, null, null, false], "similarity_floor": 0.20, "similarity_warning": 0.35}`.
 - Methods: `load() -> dict`, `save(config: dict)`, `get(key, default)`, `set(key, value)`.
 - Log file path constants: `PRIMARY_LOG_PATH` resolving `%APPDATA%\iValue_PRISM\logs\query_log.jsonl`, fallback `./logs/query_log.jsonl`.
+
+**SessionSnapshot dataclass (LOCKED DECISION #6 — define here):**
+```python
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Any
+
+@dataclass
+class SessionSnapshot:
+    """In-memory record of a single query session. §8.1.5 item 1.
+    Volatile — cleared on application exit in Phase 1."""
+    query_id: str
+    timestamp: str                          # ISO 8601
+    requirement_text: str                   # Original user input
+    recommendations: List[Dict[str, Any]]   # Serialized ProductRecommendation dicts
+    user_actions: Dict[str, str] = field(default_factory=dict)  # product_id → "accept"/"reject"
+    export_state: Optional[str] = None      # "bom_exported" / "boq_exported" / None
+```
 
 **Acceptance criteria / Definition of Done:**
 - `compute_fit_score(0.20)` returns `0.0`, `compute_fit_score(0.80)` returns `100.0`, `compute_fit_score(0.50)` returns `50.0`.
@@ -379,7 +399,7 @@ class HybridRetriever:
 ```
 
 - Use `compute_fit_score()` and `compute_confidence_tier()` from `config.py`.
-- Non-English input check (§10.1): Unicode script range check — if >20% of non-whitespace characters have `ord(char) > 0x024F`, raise an error or return a flag.
+- **Do NOT add a non-English input check here.** That check lives solely in `PrismService.analyze()` (TASK-P1.11) as the single gatekeeping point. The retriever must assume it receives valid English text.
 
 **Acceptance criteria / Definition of Done:**
 - `encode_query("PAM solution")` returns a 384-dim numpy array (not None, not empty).
@@ -805,7 +825,7 @@ class PrismService:
 
 - Import and use all dataclasses from §8.3.
 - The `analyze` method orchestrates the complete pipeline with timing for each stage (§11.1 latency dict).
-- Non-English input check at the start of `analyze()`.
+- **LOCKED DECISION — Non-English input check:** The `analyze()` method is the SOLE location for the non-English input check (§10.1). Implement the Unicode script range check here: if >20% of non-whitespace chars have `ord(c) > 0x024F`, return `AnalyzeResponse(status="error", error_message="Only English text is supported.")` immediately. Do NOT duplicate this check in `retrieval.py` or anywhere else.
 - Confidence scoring via `compute_fit_score()` and `compute_confidence_tier()`.
 
 **Acceptance criteria / Definition of Done:**
@@ -1120,6 +1140,7 @@ class PRISMApp(customtkinter.CTk):
 **Assigned to:** Fast execution model (Gemini). Escalate to Opus only via Escalation Log if blocked.
 
 **Files you may create/modify (and ONLY these):**
+- `src/ui/components/__init__.py` ← **Create this first** (empty file, establishes the package)
 - `src/ui/components/sidebar.py`
 
 **Implementation spec:**
@@ -1740,32 +1761,22 @@ except ImportError:
 
 ---
 
-## Assumptions Made
+## Locked Architectural Decisions
 
-> These are decisions made where the SRS was silent or ambiguous. Review before dispatching agents.
+> **All decisions below are LOCKED.** These were finalized on 2026-09-09 where the SRS was silent or ambiguous. Executing agents must follow these exactly — do not re-open or question them.
 
-1. **`src/core/service.py` as a separate file:** §8.3 defines `PrismService` but doesn't specify its file location. Placed it in `src/core/service.py` as a façade that imports from all other core modules.
-
-2. **`src/core/worker.py` as a separate file:** §9.8 describes the threading model but doesn't specify a file. Created `worker.py` to encapsulate the `WorkerThread` class, keeping threading logic separate from business logic.
-
-3. **`src/ui/components/welcome.py` as a separate file:** §8.1.8 describes the zero-state view but doesn't assign it to a specific module. Created a dedicated component to keep the main app clean.
-
-4. **Non-English input check location:** §10.1 specifies Unicode script check but doesn't say where it runs. Placed in `HybridRetriever.search()` (pre-embedding) and also in `PrismService.analyze()` (pre-pipeline).
-
-5. **Session history persistence:** §8.1.5 item 1 says "volatile (in-memory only; cleared upon application exit in Phase 1)". No disk persistence of session history was implemented. Phase 2 may revisit.
-
-6. **`SessionSnapshot` dataclass definition location:** Not specified in §9.10 module blueprint. Defined in `src/utils/config.py` alongside other dataclasses since it's a data structure used by both UI and core.
-
-7. **Log file setup for `prism_app.log` and `prism_error.log`:** §8.1.11 NOTE mentions these files but §11 only details the JSONL query log. Implemented basic Python `logging` to these files in `logger.py` alongside the structured query logger.
-
-8. **`main.py` location:** §9.10 shows `main.py` at root level (not inside `src/`). Placed at repo root as the PyInstaller entry point.
-
-9. **`__init__.py` files:** The existing empty `__init__.py` files in `src/`, `src/core/`, `src/ui/`, `src/utils/` are preserved. A new `src/ui/components/__init__.py` will be needed — the creating task should add it.
-
-10. **Drag-and-drop file upload:** §FR-1a mentions "drag-and-drop" but §8.1.5 item 2 only specifies a file loader button. Drag-and-drop is a stretch goal not assigned to any task; the file button is the required interface.
-
-11. **Boot splash image:** §8.1.7a specifies `boot_splash.png` at 420×280px but no asset exists yet. TASK-P6.1 uses `generate_image` to create it. If quality is insufficient, the user should replace it manually.
-
-12. **Icon assets (`assets/icons/`):** §8.1.5 references icon files but none exist. TASK-P6.3 creates simple placeholder icons. Production icons should be designed by a graphic designer.
-
-13. **`prism.spec` file:** §9.7 shows a PyInstaller command but doesn't mention a `.spec` file. TASK-P6.2 can create either a build script or a `.spec` file — the executing agent should choose based on PyInstaller best practices.
+| # | Decision | Rationale |
+|---|---|---|
+| 1 | **`PrismService` lives in `src/core/service.py`** | Clean façade pattern separating the service contract (§8.3) from individual module implementations. All core imports centralized here. |
+| 2 | **`WorkerThread` lives in `src/core/worker.py`** | Threading logic (§9.8) must be isolated from business logic. Worker has no knowledge of UI widgets. |
+| 3 | **Welcome zero-state is `src/ui/components/welcome.py`** | Dedicated component keeps PRISMApp (`app.py`) focused on window management, not content rendering. |
+| 4 | **Non-English input check runs ONLY in `PrismService.analyze()`** | Single gatekeeping point. The retriever (`retrieval.py`) assumes it receives valid English text. No duplication. |
+| 5 | **Session history is volatile (in-memory only) in Phase 1** | Confirmed by SRS §8.1.5 item 1: "strictly volatile… cleared upon application exit in Phase 1". No disk persistence. |
+| 6 | **`SessionSnapshot` dataclass is defined in `src/utils/config.py`** | Shared data structure used by both UI sidebar and core service. Defined alongside other app constants. |
+| 7 | **`prism_app.log` and `prism_error.log` are configured in `src/utils/logger.py`** | Python stdlib `logging` setup alongside the structured JSONL query logger. Both log destinations in one module. |
+| 8 | **`main.py` lives at the repository root** | Confirmed by SRS §9.10 file tree. Required as PyInstaller entry point. Not inside `src/`. |
+| 9 | **`src/ui/components/__init__.py` is created by TASK-P3.4** (first UI component task) | Existing `__init__.py` files in `src/`, `src/core/`, `src/ui/`, `src/utils/` are preserved as-is. |
+| 10 | **Drag-and-drop is NOT implemented in Phase 1** | SRS §8.1.5 item 2 specifies a file loader button. Drag-and-drop (§FR-1a) is a stretch goal for Phase 2+. |
+| 11 | **Boot splash image (`boot_splash.png`) is generated via `generate_image` tool in TASK-P6.1** | 420×280px as specified in §8.1.7a. If AI-generated quality is insufficient, replace the file manually. |
+| 12 | **Icon assets in `assets/icons/` are simple Pillow-generated placeholders** | TASK-P6.3 creates functional 24×24 monochrome icons. A graphic designer should replace them for production polish. |
+| 13 | **PyInstaller build uses a `.spec` file (`prism.spec`)** | More maintainable and debuggable than raw CLI commands. TASK-P6.2 generates `prism.spec` matching the §9.7 build specification. |
