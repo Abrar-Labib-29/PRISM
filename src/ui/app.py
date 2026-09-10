@@ -1,11 +1,21 @@
 """
 iValue PRISM — Main Application Window (PRISMApp)
-SRS References: §8.1.1, §8.1.6, §9.8, §9.9, §10.6, §10.7
-Implementation Plan: TASK-P3.3
+SRS References: §8.1.1, §8.1.4, §8.1.5, §8.1.6, §8.1.8, §8.1.9, §8.1.10, §8.1.12, §8.1.14, §8.1.15, §9.8, §9.9, §10.6, §10.7
+Implementation Plan: TASK-P3.3, TASK-P3.4, TASK-P4.1, TASK-P4.2, TASK-P4.3, TASK-P4.4, TASK-P5.1
 
 This module implements the root desktop window (PRISMApp) for iValue PRISM.
-It manages the primary layout chrome, window state persistence, screen boundary validation,
-asynchronous message queue polling, and thread-safe worker lifecycle orchestration.
+It coordinates:
+  - Single-root desktop architecture and layout chrome (§8.1.1, §8.1.4)
+  - Left navigation & system control center (SidebarView) (§8.1.5 item 1)
+  - Requirement & RFP input area (RequirementInputPanel) (§8.1.5 item 2)
+  - Zero-state guidance templates (WelcomeView) (§8.1.8)
+  - Live token streaming terminal & pipeline stepper (TokenStreamTerminal) (§8.1.5 item 3)
+  - Results verdict & recommendation cards (ResultsCanvas) (§8.1.5 item 4)
+  - Interactive tksheet BOM/BOQ export panel (ExportControlPanel) (§8.1.5 item 5)
+  - Sliding non-blocking toast notification manager (ToastNotificationManager) (§8.1.9)
+  - Extracted document review & edit modal (DocumentPreviewModal) (§8.1.12)
+  - Window state persistence & boundary self-healing (§8.1.6, §10.6)
+  - Asynchronous message queue polling and thread-safe worker lifecycle (§9.8, §9.9)
 """
 from __future__ import annotations
 
@@ -15,7 +25,8 @@ import pathlib
 import queue
 import re
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+import threading
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import customtkinter
 
@@ -23,6 +34,14 @@ if TYPE_CHECKING:
     from src.core.service import PrismService
     from src.core.worker import WorkerThread
 
+from src.core.service import AnalyzeRequest, AnalyzeResponse, ProductRecommendation
+from src.ui.components.export_panel import ExportControlPanel
+from src.ui.components.input_panel import RequirementInputPanel
+from src.ui.components.result_cards import ResultsCanvas
+from src.ui.components.sidebar import SessionSnapshot, SidebarView
+from src.ui.components.stream_box import TokenStreamTerminal
+from src.ui.components.toast import ToastNotificationManager
+from src.ui.components.welcome import WelcomeView
 from src.utils.config import (
     APP_VERSION,
     ConfigManager,
@@ -56,7 +75,8 @@ class PRISMApp(customtkinter.CTk):
     """
     Root application window for iValue PRISM (§8.1.1, §8.1.6).
     Enforces the single-root desktop architecture, owns the primary UI event loop,
-    dispatches background worker tasks, and drains the thread-safe queue.Queue.
+    mounts child components, dispatches background worker tasks, and drains the
+    thread-safe queue.Queue.
     """
 
     def __init__(
@@ -79,6 +99,7 @@ class PRISMApp(customtkinter.CTk):
 
         self._configure_window()
         self._setup_layout()
+        self._build_components()
         self._restore_geometry()
         self._bind_events()
         self._start_queue_poll()
@@ -100,12 +121,19 @@ class PRISMApp(customtkinter.CTk):
 
     def set_service(self, service: Any) -> None:
         """
-        Attaches the initialized PrismService façade post-splash and instantiates the WorkerThread.
+        Attaches the initialized PrismService façade post-splash and wires the WorkerThread and Sidebar.
         """
         self._service = service
         if not self._worker:
             from src.core.worker import WorkerThread
             self._worker = WorkerThread(self._service, self._ui_queue)
+        else:
+            self._worker._service = service
+
+        if hasattr(self, "sidebar") and self.sidebar:
+            self.sidebar._service = service
+            self.sidebar.refresh_health()
+
         _logger.info("PrismService façade attached to PRISMApp.")
 
     def _configure_window(self) -> None:
@@ -150,6 +178,209 @@ class PRISMApp(customtkinter.CTk):
             border_width=0,
         )
         self.main_canvas_frame.grid(row=0, column=1, sticky="nsew", padx=24, pady=24)
+
+    def _build_components(self) -> None:
+        """
+        Instantiates and wires all primary UI subcomponents into root containers (§8.1.5):
+        - SidebarView in sidebar_frame
+        - ToastNotificationManager on root
+        - RequirementInputPanel on top of main_canvas_frame
+        - Dynamic workspace area (WelcomeView, TokenStreamTerminal, ResultsCanvas)
+        - ExportControlPanel at bottom of main_canvas_frame
+        """
+        # 1. Toast Notification Manager anchored to root window (§8.1.9)
+        self.toast_mgr = ToastNotificationManager(self)
+
+        # 2. Navigation & System Control Sidebar (§8.1.5 item 1)
+        self.sidebar = SidebarView(
+            self.sidebar_frame,
+            service=self._service,
+            config=self.config_manager,
+        )
+        self.sidebar.pack(fill="both", expand=True)
+        self.sidebar.set_on_new_query(self._on_new_query)
+        self.sidebar.set_on_clear_workspace(self._on_clear_workspace)
+        self.sidebar.set_on_session_restore(self._on_session_restore)
+        self.sidebar.set_on_reindex(self._on_reindex)
+
+        # 3. Requirement & RFP Input Panel (§8.1.5 item 2)
+        self.input_panel = RequirementInputPanel(self.main_canvas_frame)
+        self.input_panel.pack(fill="x", pady=(0, 16))
+        self.input_panel.set_on_analyze(self._on_start_analysis)
+        self.input_panel.set_on_cancel(self._on_cancel_analysis)
+        self.input_panel.set_on_file_load(self._on_file_loaded)
+
+        # 4. Dynamic Middle Workspace (Zero-state / Stream Box / Results Canvas)
+        self.workspace_frame = customtkinter.CTkFrame(self.main_canvas_frame, fg_color="transparent")
+        self.workspace_frame.pack(fill="both", expand=True)
+
+        # Zero-State Guidance View (§8.1.8)
+        self.welcome_view = WelcomeView(
+            self.workspace_frame,
+            on_template_select=self._on_template_selected,
+        )
+        self.welcome_view.pack(fill="both", expand=True)
+
+        # Live Token Streaming & Stepper Terminal (§8.1.5 item 3)
+        self.stream_box = TokenStreamTerminal(self.workspace_frame)
+        # Hidden initially; shown during active analysis
+
+        # Results Canvas (Verdict header + recommendation cards) (§8.1.5 item 4)
+        self.results_canvas = ResultsCanvas(self.workspace_frame)
+        self.results_canvas.set_on_accept(self._on_card_accept_toggle)
+        self.results_canvas.set_on_modify(self._on_card_modify)
+        self.results_canvas.set_on_reject(self._on_card_reject)
+        # Hidden initially; shown on analysis success
+
+        # 5. Interactive tksheet BOM/BOQ Export Panel (§8.1.5 item 5)
+        self.export_panel = ExportControlPanel(
+            self.main_canvas_frame,
+            toast_manager=self.toast_mgr,
+            on_export_bom=self._on_bom_exported,
+            on_export_boq=self._on_boq_exported,
+        )
+        # Starts hidden by default until at least one candidate is accepted
+
+    # =========================================================================
+    # User Action Callbacks & Component Orchestration
+    # =========================================================================
+
+    def _on_template_selected(self, template_text: str) -> None:
+        """Pours starter template text directly into requirement input box (§8.1.8)."""
+        self.input_panel.set_text(template_text)
+
+    def _on_start_analysis(self, requirement_text: str) -> None:
+        """Dispatches engineer requirement to background WorkerThread pipeline (§9.8, §9.9)."""
+        if not self._service:
+            self.toast_mgr.show("Core RAG service not ready or initialized.", variant="error")
+            self.input_panel.set_analyzing(False)
+            return
+
+        if not self._worker:
+            from src.core.worker import WorkerThread
+            self._worker = WorkerThread(self._service, self._ui_queue)
+
+        if self._worker.is_running:
+            self.toast_mgr.show("An analysis operation is already in progress.", variant="warning")
+            return
+
+        # Update UI state for analysis execution
+        self.input_panel.set_analyzing(True)
+        self.welcome_view.pack_forget()
+        self.results_canvas.pack_forget()
+        self.stream_box.reset()
+        self.stream_box.show()
+        self.stream_box.set_step(1, "running")
+
+        req = AnalyzeRequest(query_text=requirement_text)
+        self._worker.start_analysis(req)
+
+    def _on_cancel_analysis(self) -> None:
+        """Preempts running pipeline thread upon engineer request (§9.9)."""
+        if self._worker and self._worker.is_running:
+            self._worker.cancel()
+
+        self.input_panel.set_analyzing(False)
+        self.stream_box.reset()
+        self.stream_box.hide()
+        if not self.results_canvas.winfo_ismapped():
+            self.welcome_view.pack(fill="both", expand=True)
+
+        self.toast_mgr.show("Analysis run cancelled.", variant="info")
+
+    def _on_file_loaded(self, file_path: str) -> None:
+        """Extracts text from uploaded RFP document and presents preview modal (§8.1.12)."""
+        try:
+            from src.core.ingestion import DocumentParser
+            parser = DocumentParser()
+            result = parser.parse_file(file_path)
+            if not result.success:
+                self.toast_mgr.show(f"Document extraction failed: {result.error_message}", variant="error")
+                return
+
+            from src.ui.components.extraction_modal import DocumentPreviewModal
+            DocumentPreviewModal(
+                self,
+                extraction_result=result,
+                on_confirm=lambda text: self.input_panel.set_text(text),
+            )
+        except Exception as e:
+            _logger.error(f"Error opening document preview modal: {e}", exc_info=True)
+            self.toast_mgr.show(f"Failed to open document: {e}", variant="error")
+
+    def _on_card_accept_toggle(self, rec: ProductRecommendation, is_accepted: bool) -> None:
+        """Syncs candidate recommendation acceptance state with BOM/BOQ export grid (§8.1.5 item 5)."""
+        if is_accepted:
+            self.export_panel.add_product(rec)
+            self.toast_mgr.show(f"Added '{rec.product_name}' to export proposal.", variant="info")
+        else:
+            self.export_panel.remove_product(rec.product_id)
+            self.toast_mgr.show(f"Removed '{rec.product_name}' from export proposal.", variant="info")
+
+    def _on_card_modify(self, rec: ProductRecommendation, new_rationale: str) -> None:
+        """Logs rationale update made by engineer in-place (§8.1.14)."""
+        _logger.debug(f"Rationale modified for {rec.product_id}")
+
+    def _on_card_reject(self, rec: ProductRecommendation, reason: str) -> None:
+        """Handles candidate exclusion/rejection (§8.1.14)."""
+        self.export_panel.remove_product(rec.product_id)
+        self.toast_mgr.show(f"Excluded '{rec.product_name}': {reason}", variant="warning")
+
+    def _on_bom_exported(self, file_path: str) -> None:
+        """Handles successful BOM export event."""
+        _logger.info(f"BOM exported successfully to: {file_path}")
+
+    def _on_boq_exported(self, file_path: str) -> None:
+        """Handles successful BOQ export event."""
+        _logger.info(f"BOQ exported successfully to: {file_path}")
+
+    def _on_new_query(self) -> None:
+        """Resets input and workspace for a fresh requirement (§8.1.5 item 1)."""
+        self.input_panel.clear()
+        self.stream_box.reset()
+        self.stream_box.hide()
+        self.results_canvas.clear()
+        self.results_canvas.pack_forget()
+        self.welcome_view.pack(fill="both", expand=True)
+
+    def _on_clear_workspace(self) -> None:
+        """Fully clears all requirement, results, and export panel state (§8.1.5 item 1)."""
+        self.input_panel.clear()
+        self.stream_box.reset()
+        self.stream_box.hide()
+        self.results_canvas.clear()
+        self.results_canvas.pack_forget()
+        self.export_panel.clear_all()
+        self.welcome_view.pack(fill="both", expand=True)
+        self.toast_mgr.show("Workspace cleared.", variant="info")
+
+    def _on_session_restore(self, snapshot: SessionSnapshot) -> None:
+        """Restores past session requirement and recommendation cards from sidebar reel (§8.1.5 item 1)."""
+        self.input_panel.set_text(snapshot.requirement_text)
+        self.welcome_view.pack_forget()
+        self.stream_box.reset()
+        self.stream_box.hide()
+        if snapshot.response:
+            self.results_canvas.show_results(snapshot.response)
+            self.results_canvas.pack(fill="both", expand=True)
+        self.toast_mgr.show(f"Session {snapshot.query_id[:8]} restored.", variant="info")
+
+    def _on_reindex(self) -> None:
+        """Dispatches catalog re-indexing in background (§8.1.5 item 1)."""
+        self.toast_mgr.show("Refreshing catalog index...", variant="info")
+        if self._service and hasattr(self._service, "retriever"):
+            def _reindex_worker():
+                try:
+                    self._service.retriever.reload_index()
+                    self.after(0, lambda: self.toast_mgr.show("Catalog index refreshed successfully.", variant="success"))
+                    self.after(0, self.sidebar.refresh_health)
+                except Exception as exc:
+                    self.after(0, lambda: self.toast_mgr.show(f"Re-index failed: {exc}", variant="error"))
+            threading.Thread(target=_reindex_worker, daemon=True).start()
+
+    # =========================================================================
+    # Geometry & Window State Persistence
+    # =========================================================================
 
     def _validate_window_position(
         self,
@@ -217,7 +448,7 @@ class PRISMApp(customtkinter.CTk):
                 w = DEFAULT_WIDTH
                 h = DEFAULT_HEIGHT
 
-        # Bound check against screen size if display is smaller than default (e.g. 1280x720 or 1366x768)
+        # Bound check against screen size if display is smaller than default
         try:
             screen_w = self.winfo_screenwidth()
             screen_h = self.winfo_screenheight()
@@ -234,7 +465,6 @@ class PRISMApp(customtkinter.CTk):
 
         if is_maximized:
             try:
-                # Windows maximized state via state('zoomed')
                 self.after(100, lambda: self.state("zoomed"))
             except Exception as e:
                 _logger.debug(f"Could not apply maximized state: {e}")
@@ -329,32 +559,90 @@ class PRISMApp(customtkinter.CTk):
             _logger.debug(f"Received unhandled queue message type: {msg_type}")
 
     # =========================================================================
-    # Queue Handler Stubs (Hooked by child components in P3.4, P3.5, P4.x)
+    # Queue Handlers
     # =========================================================================
 
     def _on_status_step(self, step: int, label: str) -> None:
         """Handles RAG pipeline progress step updates."""
         _logger.debug(f"Queue [STATUS_STEP]: step={step}, label='{label}'")
+        if hasattr(self, "stream_box") and self.stream_box:
+            for s in range(1, step):
+                self.stream_box.set_step(s, "completed")
+            self.stream_box.set_step(step, "running")
 
     def _on_stream_token(self, token: str) -> None:
         """Handles incoming streamed tokens from Ollama LLM."""
-        pass
+        if hasattr(self, "stream_box") and self.stream_box:
+            self.stream_box.append_token(token)
 
     def _on_stream_complete(self, full_text: str) -> None:
         """Handles completion of LLM token stream."""
         _logger.debug(f"Queue [STREAM_COMPLETE]: length={len(full_text)}")
+        if hasattr(self, "stream_box") and self.stream_box:
+            self.stream_box.set_step(3, "completed")
 
     def _on_analysis_success(self, payload: Any) -> None:
         """Handles successful analysis response payload."""
         _logger.info("Queue [ANALYSIS_SUCCESS]: Analysis response received successfully.")
+        if hasattr(self, "input_panel") and self.input_panel:
+            self.input_panel.set_analyzing(False)
+
+        if hasattr(self, "stream_box") and self.stream_box:
+            for s in range(1, 4):
+                self.stream_box.set_step(s, "completed")
+            self.stream_box.hide()
+
+        if hasattr(self, "welcome_view") and self.welcome_view:
+            self.welcome_view.pack_forget()
+
+        if hasattr(self, "results_canvas") and self.results_canvas and isinstance(payload, AnalyzeResponse):
+            self.results_canvas.show_results(payload)
+            self.results_canvas.pack(fill="both", expand=True)
+
+            if payload.recommendations:
+                if hasattr(self, "sidebar") and self.sidebar:
+                    self.sidebar.add_session(
+                        query_id=payload.query_id,
+                        query_text=self.input_panel.get_text(),
+                        response=payload,
+                    )
+                if hasattr(self, "toast_mgr") and self.toast_mgr:
+                    self.toast_mgr.show(
+                        f"Identified {len(payload.recommendations)} candidate recommendation(s).",
+                        variant="success",
+                    )
+            else:
+                if hasattr(self, "toast_mgr") and self.toast_mgr:
+                    self.toast_mgr.show(
+                        "No catalog products met the requirement criteria.",
+                        variant="warning",
+                    )
 
     def _on_analysis_error(self, error_type: str, message: str) -> None:
         """Handles analysis error notifications."""
         _logger.warning(f"Queue [ANALYSIS_ERROR]: type={error_type}, msg='{message}'")
+        if hasattr(self, "input_panel") and self.input_panel:
+            self.input_panel.set_analyzing(False)
+        if hasattr(self, "stream_box") and self.stream_box:
+            self.stream_box.hide()
+        if hasattr(self, "results_canvas") and hasattr(self, "welcome_view"):
+            if not self.results_canvas.winfo_ismapped():
+                self.welcome_view.pack(fill="both", expand=True)
+        if hasattr(self, "toast_mgr") and self.toast_mgr:
+            self.toast_mgr.show(f"Analysis Error: {message}", variant="error")
 
     def _on_analysis_cancelled(self) -> None:
         """Handles worker cancellation notification."""
         _logger.info("Queue [ANALYSIS_CANCELLED]: Pipeline run was cancelled.")
+        if hasattr(self, "input_panel") and self.input_panel:
+            self.input_panel.set_analyzing(False)
+        if hasattr(self, "stream_box") and self.stream_box:
+            self.stream_box.hide()
+        if hasattr(self, "results_canvas") and hasattr(self, "welcome_view"):
+            if not self.results_canvas.winfo_ismapped():
+                self.welcome_view.pack(fill="both", expand=True)
+        if hasattr(self, "toast_mgr") and self.toast_mgr:
+            self.toast_mgr.show("Pipeline cancelled.", variant="info")
 
     # =========================================================================
     # Graceful Shutdown Protocol (§9.8 item 6)

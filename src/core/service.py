@@ -44,6 +44,7 @@ from src.utils.config import (
     SIMILARITY_FLOOR,
     compute_confidence_tier,
     compute_fit_score,
+    get_data_path,
 )
 from src.utils.logger import QueryLogger, generate_query_id
 from src.utils.system_info import get_ram_usage_mb
@@ -131,7 +132,7 @@ class PrismService:
     Core in-process service contract exposed by src/core/ to the GUI (§8.3).
     """
 
-    def __init__(self) -> None:
+    def __init__(self, auto_start_ollama: bool = True) -> None:
         """
         Initializes all core components:
         - DocumentParser
@@ -160,18 +161,15 @@ class PrismService:
         self._load_static_assets()
 
         # Ensure Ollama daemon is active (§9.11)
-        if not self.ollama_mgr.is_online():
+        if auto_start_ollama and not self.ollama_mgr.is_online():
             self.ollama_mgr.auto_start()
 
         _logger.info("PrismService façade initialized successfully.")
 
     def _load_static_assets(self) -> None:
         """Loads composite products and domain taxonomy into memory for fast lookup."""
-        base_dir = os.path.join(os.path.dirname(__file__), "..", "..", "data")
-        base_dir = os.path.abspath(base_dir)
-
         # 1. Composite products for get_product
-        comp_path = os.path.join(base_dir, "composite_products.json")
+        comp_path = get_data_path("composite_products.json")
         if os.path.isfile(comp_path):
             try:
                 with open(comp_path, "r", encoding="utf-8") as f:
@@ -184,7 +182,7 @@ class PrismService:
                 _logger.warning(f"Could not load composite_products.json: {e}")
 
         # 2. Domain taxonomy for get_domains
-        tax_path = os.path.join(base_dir, "domain_taxonomy.json")
+        tax_path = get_data_path("domain_taxonomy.json")
         if os.path.isfile(tax_path):
             try:
                 with open(tax_path, "r", encoding="utf-8") as f:
@@ -236,20 +234,45 @@ class PrismService:
             )
 
         # 2. LOCKED DECISION — Non-English input check (§10.1)
-        # Sole enforcement point: Unicode script check >20% non-whitespace chars ord > 0x024F
+        # Primary check: Unicode script check >20% non-whitespace chars ord > 0x024F
         non_ws_chars = [c for c in raw_text if not c.isspace()]
+        is_non_english = False
         if non_ws_chars:
             non_latin_count = sum(1 for c in non_ws_chars if ord(c) > 0x024F)
             if (non_latin_count / len(non_ws_chars)) > 0.20:
-                total_ms = int((time.time() - start_time) * 1000)
-                _logger.warning(f"Query {query_id} rejected: non-English characters exceeded 20% threshold.")
-                return AnalyzeResponse(
-                    query_id=query_id,
-                    status="error",
-                    latency_ms=total_ms,
-                    recommendations=[],
-                    error_message="Only English text is supported.",
-                )
+                is_non_english = True
+
+        # Secondary check for Latin-script foreign languages (e.g., French, Spanish, German, Italian, Portuguese)
+        if not is_non_english:
+            words = [w.lower().strip(".,!?:;\"'()[]{}") for w in raw_text.split() if len(w) > 1]
+            if len(words) >= 4:
+                common_foreign_words = {
+                    "le", "la", "les", "des", "du", "pour", "dans", "avec", "sur", "est", "sont", "une", "que",
+                    "el", "los", "las", "para", "con", "por", "como", "una", "del", "este",
+                    "der", "die", "das", "und", "ist", "für", "mit", "nicht", "eine", "einer", "einem",
+                    "il", "lo", "gli", "per", "sono", "questo", "della",
+                    "com", "uma", "pelos", "pelas"
+                }
+                common_english_words = {
+                    "the", "a", "an", "and", "or", "to", "in", "for", "with", "of", "is", "are", "on", "at",
+                    "by", "from", "we", "our", "need", "require", "requirements", "support", "firewall",
+                    "security", "network", "cloud", "server", "data", "users", "system", "management"
+                }
+                foreign_matches = sum(1 for w in words if w in common_foreign_words)
+                english_matches = sum(1 for w in words if w in common_english_words)
+                if foreign_matches >= 3 and english_matches == 0:
+                    is_non_english = True
+
+        if is_non_english:
+            total_ms = int((time.time() - start_time) * 1000)
+            _logger.warning(f"Query {query_id} rejected: non-English requirement detected.")
+            return AnalyzeResponse(
+                query_id=query_id,
+                status="error",
+                latency_ms=total_ms,
+                recommendations=[],
+                error_message="Currently, only English text is supported. Please translate your requirements and try again.",
+            )
 
         # 3. Pre-generation prompt injection scan (§10.8)
         is_suspicious, matched_kws = self.validator.check_prompt_injection(raw_text)
@@ -512,7 +535,8 @@ class PrismService:
         item = self._products_cache.get(product_id)
         if not item:
             # Check retriever metadata
-            for m in self.retriever._metadata:
+            meta_records = getattr(self.retriever, "metadata", getattr(self.retriever, "_metadata", []))
+            for m in meta_records:
                 if m.get("product_id") == product_id:
                     item = m
                     break
@@ -560,7 +584,7 @@ class PrismService:
         ollama_online = self.ollama_mgr.is_online()
         ollama_status = "online" if ollama_online else "offline"
 
-        embed_file = getattr(self.retriever, "embeddings_path", "data/embeddings.npy")
+        embed_file = getattr(self.retriever, "embeddings_path", None) or get_data_path("embeddings.npy")
         embed_file = os.path.abspath(embed_file)
         if os.path.isfile(embed_file):
             embedding_file_status = "available"
@@ -574,9 +598,7 @@ class PrismService:
             last_embed_ts = "missing"
 
         # Check dataset file timestamp
-        dataset_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "data", "raw", "iValue_Solution_Recommendation_Dataset.xlsx"
-        )
+        dataset_path = get_data_path("raw/iValue_Solution_Recommendation_Dataset.xlsx")
         dataset_path = os.path.abspath(dataset_path)
         if os.path.isfile(dataset_path):
             try:
@@ -601,7 +623,7 @@ class PrismService:
         else:
             overall_status = "offline"
 
-        index_count = len(self.retriever._metadata) if hasattr(self.retriever, "_metadata") else 139
+        index_count = len(self.retriever.metadata) if hasattr(self.retriever, "metadata") and self.retriever.metadata is not None else 139
 
         return SystemHealthResponse(
             status=overall_status,

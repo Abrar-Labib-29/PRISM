@@ -7,9 +7,15 @@ fit score calculations, persistent user configuration management, and the shared
 data structure.
 """
 
+import os
+import sys
+
+# Enforce 100% offline mode for Hugging Face Hub / Transformers (Hard Constraint #2)
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+
 from dataclasses import dataclass, field
 import json
-import os
 from typing import Any, Dict, List, Optional
 
 
@@ -57,6 +63,40 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 
+def get_data_path(relative_path: str) -> str:
+    """
+    Resolves data file path for development mode and PyInstaller frozen bundle (_MEIPASS).
+    """
+    # Strip redundant leading data/ or data\ if present for uniform searching
+    clean_rel = relative_path.replace("\\", "/")
+    if clean_rel.startswith("data/"):
+        clean_rel = clean_rel[5:]
+
+    # 1. PyInstaller frozen bundle runtime directory
+    base_meipass = getattr(sys, "_MEIPASS", None)
+    if base_meipass:
+        for cand in [
+            os.path.join(base_meipass, relative_path),
+            os.path.join(base_meipass, "data", clean_rel),
+            os.path.join(base_meipass, clean_rel),
+        ]:
+            if os.path.exists(cand):
+                return cand
+
+    # 2. Development mode relative to repository root
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    for cand in [
+        os.path.join(root_dir, relative_path),
+        os.path.join(root_dir, "data", clean_rel),
+        os.path.join(root_dir, clean_rel),
+    ]:
+        if os.path.exists(cand):
+            return cand
+
+    # 3. Direct relative or absolute fallback
+    return os.path.abspath(os.path.join(root_dir, "data", clean_rel))
+
+
 # ==============================================================================
 # Pure Functions & Calculation Heuristics
 # ==============================================================================
@@ -66,13 +106,14 @@ def compute_fit_score(cosine_similarity: float) -> float:
     Computes normalized 0-100% Fit Score from raw cosine similarity.
     Formula: max(0.0, min(100.0, (cosine_similarity - SIMILARITY_FLOOR) / (SIMILARITY_CEILING - SIMILARITY_FLOOR) * 100))
     """
-    return max(
+    val = max(
         0.0,
         min(
             100.0,
             (cosine_similarity - SIMILARITY_FLOOR) / (SIMILARITY_CEILING - SIMILARITY_FLOOR) * 100.0,
         ),
     )
+    return round(val, 2)
 
 
 def compute_confidence_tier(fit_score: float, all_confirmed: bool) -> str:

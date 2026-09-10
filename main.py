@@ -56,6 +56,14 @@ def _register_app_user_model_id() -> None:
 
 def main() -> None:
     """Application main entry point."""
+    # Native C-bootloader splash handoff (§8.1.7a, STR-10)
+    try:
+        import pyi_splash
+        pyi_splash.update_text("Initializing PRISM Core Engine...")
+        pyi_splash.close()
+    except ImportError:
+        pass
+
     _logger.info("Starting iValue PRISM Desktop Application...")
 
     # 1. Register AppUserModelID (§8.1.1)

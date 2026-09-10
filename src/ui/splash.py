@@ -105,7 +105,9 @@ class SplashPreloader(customtkinter.CTkToplevel):
         self._container.pack_propagate(False)
 
         # 1. 96x96 Logo graphic (or text fallback)
-        logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.jpg")
+        logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.png")
+        if not logo_path.exists():
+            logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.jpg")
         logo_loaded = False
 
         if logo_path.exists():

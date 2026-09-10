@@ -27,6 +27,7 @@ from src.utils.config import (
     SIMILARITY_WARNING,
     compute_confidence_tier,
     compute_fit_score,
+    get_data_path,
 )
 
 _logger = logging.getLogger("prism.retrieval")
@@ -43,25 +44,31 @@ class HybridRetriever:
 
     def __init__(
         self,
-        embeddings_path: str = "data/embeddings.npy",
-        metadata_path: str = "data/metadata.pkl",
-        composite_path: str = "data/composite_products.json",
-        taxonomy_path: str = "data/domain_taxonomy.json",
+        embeddings_path: Optional[str] = None,
+        metadata_path: Optional[str] = None,
+        composite_path: Optional[str] = None,
+        taxonomy_path: Optional[str] = None,
         model_name: str = EMBEDDING_MODEL_NAME,
     ) -> None:
-        self.embeddings_path = embeddings_path
-        self.metadata_path = metadata_path
-        self.composite_path = composite_path
-        self.taxonomy_path = taxonomy_path
+        self.embeddings_path = embeddings_path or get_data_path("data/embeddings.npy")
+        self.metadata_path = metadata_path or get_data_path("data/metadata.pkl")
+        self.composite_path = composite_path or get_data_path("data/composite_products.json")
+        self.taxonomy_path = taxonomy_path or get_data_path("data/domain_taxonomy.json")
         self.model_name = model_name
 
         self._lock = threading.Lock()
         self.last_embed_timestamp: float = 0.0
 
-        # Load embedding model
+        # Load embedding model in 100% offline mode (Hard Constraint #2)
         model_id = "BAAI/bge-small-en-v1.5" if model_name == "bge-small-en-v1.5" else model_name
         _logger.info(f"Loading embedding model: {model_id}")
-        self.model = SentenceTransformer(model_id)
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        try:
+            self.model = SentenceTransformer(model_id, local_files_only=True)
+        except Exception:
+            # Fallback if local_files_only keyword argument unsupported
+            self.model = SentenceTransformer(model_id)
 
         # Load indices and assets
         self.reload_index()
@@ -235,7 +242,7 @@ class HybridRetriever:
         with self._lock:
             all_vecs = self.embeddings
             metadata = self.metadata
-            comp_map = self.composite_map
+            comp_map = getattr(self, "composite_map", getattr(self, "composite_data", {}))
 
         # Calculate all raw cosine similarities
         dot_products = np.dot(all_vecs, query_vec)

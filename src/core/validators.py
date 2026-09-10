@@ -79,6 +79,8 @@ INJECTION_PATTERNS = [
     r"system\s+override",
     r"\bact\s+as\b",
     r"\byou\s+are\s+now\b",
+    r"\bDAN\b",
+    r"do\s+anything\s+now",
     r"reveal\s+your\s+instructions?",
     r"repeat\s+your\s+system",
     r"\bbypass\s+rules?\b",

@@ -15,7 +15,7 @@ import os
 import pickle
 from typing import Any, Dict, List, Optional
 
-from src.utils.config import NUM_CTX, estimate_tokens
+from src.utils.config import NUM_CTX, estimate_tokens, get_data_path
 
 _logger = logging.getLogger("prism.context")
 
@@ -44,11 +44,11 @@ class ContextAssembler:
 
     def __init__(
         self,
-        composite_products_path: str = "data/composite_products.json",
-        metadata_path: str = "data/metadata.pkl",
+        composite_products_path: Optional[str] = None,
+        metadata_path: Optional[str] = None,
     ) -> None:
-        self.composite_products_path = composite_products_path
-        self.metadata_path = metadata_path
+        self.composite_products_path = composite_products_path or get_data_path("composite_products.json")
+        self.metadata_path = metadata_path or get_data_path("metadata.pkl")
         self.composite_dict: Dict[str, Dict[str, Any]] = {}
         self.metadata_dict: Dict[str, Dict[str, Any]] = {}
 

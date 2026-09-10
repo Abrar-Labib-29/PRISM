@@ -47,6 +47,10 @@ class ExtractionResult:
     warning: Optional[str] = None  # e.g., "scanned_pdf", "encoding_fallback"
     error: Optional[str] = None
 
+    @property
+    def success(self) -> bool:
+        return self.error is None
+
 
 class DocumentParser:
     """
@@ -266,3 +270,5 @@ class DocumentParser:
         except Exception as e:
             _logger.error(f"Failed to parse DOCX {file_path}: {e}")
             return "", None, f"Failed to parse DOCX file: {e}"
+
+    parse_file = extract

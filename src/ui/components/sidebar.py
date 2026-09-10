@@ -126,7 +126,9 @@ class SidebarView(customtkinter.CTkFrame):
         left_box.pack(side="left", fill="both", expand=True)
 
         # 40x40 Brand Logo Graphic or refractive glyph fallback
-        logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.jpg")
+        logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.png")
+        if not logo_path.exists():
+            logo_path = _get_asset_path("assets/branding/ivalue_prism_logo.jpg")
         logo_loaded = False
 
         if logo_path.exists():
